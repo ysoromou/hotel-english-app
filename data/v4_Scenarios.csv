@@ -1,0 +1,346 @@
+Action_ID,Scenario_ID,Type,Niveau,Contexte,Objectif_salarie,Dialogue_modele,Criteres_reussite
+REC_CHECKIN,REC_CHECKIN_NORMAL,NORMAL,A2,Client avec réservation arrive à 15h,"Accueillir, vérifier réservation, demander passeport, donner clé, expliquer petit-déjeuner","Staff: Good afternoon. Welcome.
+Client: Hi. I have a reservation.
+Staff: Your name please?
+Client: Smith.
+Staff: Yes, Mr Smith. 3 nights. Passport please?
+Client: Here.
+Staff: Thank you. Room 302, third floor. Here is your key.
+Client: What time is breakfast?
+Staff: 7 to 10. Restaurant downstairs.
+Client: OK thanks.
+Staff: Enjoy your stay.",Salutation | Vérification réservation | Demande ID | Infos chambre | Infos services | Formule clôture
+REC_CHECKIN,REC_CHECKIN_CONFLIT,CONFLIT,A2+,"Client arrive, réservation introuvable","Gérer la frustration, chercher solution","Staff: Good afternoon. Your name?
+Client: Johnson! I booked two weeks ago!
+Staff: Let me check... I'm sorry, I don't see it.
+Client: What?! This is not acceptable!
+Staff: I understand. Can you spell your name?
+Client: J-O-H-N-S-O-N!
+Staff: Do you have the confirmation email?
+Client: Yes, here.
+Staff: Ah, I see. Different spelling. Sorry. Your room is ready.
+Client: Finally.",Reste calme | Cherche solution | Ne blâme pas | Résout
+REC_CHECKIN,REC_CHECKIN_CONFLIT_RAW,CONFLIT_RAW,A2,"Client arrive, réservation introuvable, client parle mal anglais ou est pressé",Comprendre malgré langage imprécis,"Staff: Good afternoon. Your name?
+Client: Johnson. Reservation. Two weeks.
+Staff: Let me check... Sorry, I don't see it.
+Client: No no no! I book! I have email!
+Staff: OK. Show me please.
+Client: Here. Look!
+Staff: Ah yes. Sorry. Different spelling. Room ready now.
+Client: OK OK. Key.",Comprend intention | Reste patient | Demande preuve | Résout
+REC_CHECKOUT,REC_CHECKOUT_NORMAL,NORMAL,A2,Client part après 2 nuits,"Vérifier consommations, présenter facture, encaisser","Staff: Good morning. Checking out?
+Client: Yes. Room 302.
+Staff: OK. Minibar?
+Client: No.
+Staff: Here is your bill. 150,000 francs.
+Client: Card.
+Staff: OK. Sign here please.
+Client: Done.
+Staff: Thank you. Safe journey.",Check-out | Minibar | Facture | Paiement | Remerciement
+REC_CHECKOUT,REC_CHECKOUT_CONFLIT,CONFLIT,A2+,Client conteste un montant,"Vérifier, corriger si erreur","Client: Wait. What is this? 15,000?
+Staff: Let me check... Minibar. Two waters.
+Client: No! I didn't take anything!
+Staff: OK. I check with housekeeping... Sorry, error. I remove it.
+Client: Good.
+Staff: Here is corrected bill. Sorry for that.",Écoute | Vérifie | Corrige | S'excuse
+REC_INFO,REC_INFO_NORMAL,NORMAL,A1+,Client demande infos Wi-Fi et petit-déjeuner,Donner informations claires,"Client: Wi-Fi password?
+Staff: On this card. Free.
+Client: And breakfast?
+Staff: 7 to 10. Restaurant, ground floor. Included.
+Client: OK thanks.",Réponse rapide | Info complète
+REC_INFO,REC_INFO_CONFLIT,CONFLIT,A2,Wi-Fi ne marche pas,"Aider, résoudre","Client: Wi-Fi not working! One hour!
+Staff: Sorry. Let me help. What device?
+Client: Phone.
+Staff: Open browser first... Try now.
+Client: Yes. Finally.
+Staff: Sorry for trouble. Call us if problem.",Excuse | Aide concrète | Vérifie | Reste disponible
+REC_COMPLAINT,REC_COMPLAINT_NORMAL,NORMAL,A2,Client signale bruit chambre voisine,"Écouter, agir","Client: Too much noise. Next room. I can't sleep.
+Staff: Sorry. I call security now. They stop it.
+Client: OK.
+Staff: I call you back to confirm?",Écoute | Action | Suivi
+REC_COMPLAINT,REC_COMPLAINT_CONFLIT,CONFLIT,B1,"Client furieux, veut remboursement","Désamorcer, proposer solution","Client: Unacceptable! I want refund! No sleep all night!
+Staff: I understand. Very sorry.
+Client: Sorry not enough!
+Staff: You're right. I can offer free night or big discount. Or manager can speak with you.
+Client: Manager. Now.
+Staff: OK. One moment please.",Valide émotion | Excuse | Propose geste | Escalade si demandé
+REC_COMPLAINT,REC_COMPLAINT_AVANCE_B1,CONFLIT_AVANCE,B1,"Client menace TripAdvisor, veut remboursement total","Désamorcer menace, négocier","Client: I write on TripAdvisor! Worst hotel! Full refund NOW!
+Staff: I see you had bad experience. Very sorry. What happened exactly?
+Client: Room dirty! AC broken! Nobody helped!
+Staff: That's not acceptable. I apologize. I can offer: full refund tonight, free upgrade, dinner voucher. OK?
+Client: Maybe...
+Staff: I also tell manager. Can I have your email for follow-up?
+Client: OK. Here.
+Staff: Thank you for giving us chance to fix this.",Ne réagit pas à menace | Demande faits | Propose solution | Contact suivi
+REC_COMPLAINT,REC_COMPLAINT_AVANCE_A2,CONFLIT_AVANCE_SIMPLE,A2,"Client très mécontent, menace avis négatif",Version simplifiée pour A2,"Client: Bad hotel! I write bad review!
+Staff: Sorry. What is the problem?
+Client: Room dirty! AC not working!
+Staff: Very sorry. I give you free night. OK?
+Client: Hmm...
+Staff: And I tell manager. Your email please?
+Client: OK. Here.
+Staff: Thank you.",Excuse | Demande problème | Offre solution | Prend contact
+REC_CHANGE,REC_CHANGE_NORMAL,NORMAL,A2,Client veut chambre plus haute,"Vérifier dispo, changer","Client: Can I change room? Higher floor?
+Staff: Let me check... Yes. Room 512, 5th floor. Same type.
+Client: OK.
+Staff: Here is new key. Need help with bags?
+Client: No, I'm fine.
+Staff: Room 512. Enjoy.",Vérifie | Propose | Organise
+REC_CHANGE,REC_CHANGE_CONFLIT,CONFLIT,A2+,"Chambre avec problème, client mécontent","Changer immédiatement, compenser","Client: Bad smell in room! I can't stay!
+Staff: Sorry! I change you now. Room 405 is OK. I checked.
+Client: This should not happen!
+Staff: You're right. Here is dinner voucher. Free. Sorry.",Excuse | Solution immédiate | Compensation
+HK_ENTRY,HK_ENTRY_NORMAL,NORMAL,A1,Arrivée devant chambre pour ménage,"Frapper, s'identifier, demander permission","Staff: (knocks) Housekeeping!
+(waits)
+Staff: (knocks) Housekeeping! Come in?
+Client: Yes.
+Staff: Good morning. I clean. 20 minutes OK?
+Client: Yes, go.",Frappe | S'identifie | Demande | Annonce durée
+HK_ENTRY,HK_ENTRY_CONFLIT,CONFLIT,A2,"Client refuse, irrité","Accepter refus, proposer alternative","Staff: (knocks) Housekeeping!
+Client: Not now! Later!
+Staff: OK. What time?
+Client: After 3!
+Staff: OK. After 3. Sorry.",Accepte | Propose horaire | S'excuse
+HK_ENTRY,HK_ENTRY_CONFLIT_RAW,CONFLIT_RAW,A1+,"Client irrité, parle brusquement",Comprendre malgré ton sec,"Staff: Housekeeping!
+Client: No! Go! Later!
+Staff: OK OK. What time?
+Client: 3! Go now!
+Staff: Yes. Sorry. 3 o'clock.",Ne prend pas personnellement | Obtient horaire | Part
+HK_CLEAN,HK_CLEAN_NORMAL,NORMAL,A1+,"Client présent, pose questions",Expliquer le nettoyage,"Client: What you do?
+Staff: Change sheets. Clean bathroom. Vacuum. New towels.
+Client: How long?
+Staff: 20 minutes. Bathroom first? You stay in room.
+Client: Yes, good.
+Staff: OK. I tell you when finish.",Explique | Donne durée | Propose arrangement
+HK_CLEAN,HK_CLEAN_CONFLIT,CONFLIT,A2,"Client pressé, ménage trop long",S'adapter,"Client: 30 minutes! I need to leave!
+Staff: Sorry. 5 more minutes.
+Client: No time!
+Staff: OK. I finish later. Room OK to use now.
+Client: Just bathroom!
+Staff: OK. 2 minutes.",S'excuse | S'adapte | Propose solution
+HK_REQUEST,HK_REQUEST_NORMAL,NORMAL,A2,Client demande serviettes,"Comprendre, livrer","Client: More towels please.
+Staff: How many?
+Client: Four big, two small.
+Staff: OK. Shampoo? Soap?
+Client: Yes, shampoo.
+Staff: 5 minutes. I bring.",Précise | Propose plus | Donne délai
+HK_REQUEST,HK_REQUEST_CONFLIT,CONFLIT,A2+,Client demande quelque chose qu'on n'a pas,"Expliquer, proposer alternative","Client: I want memory foam pillow.
+Staff: Sorry. We don't have. Soft or firm pillow OK?
+Client: Not acceptable! This hotel!
+Staff: I understand. I check with reception. Maybe they find. I call you in 10 minutes?
+Client: OK.",Explique | Propose alternative | Escalade
+HK_COMPLAINT,HK_COMPLAINT_NORMAL,NORMAL,A2,Client signale oubli serviettes,"S'excuser, corriger","Client: No towels in room.
+Staff: Sorry. How many?
+Client: Four.
+Staff: OK. I bring now. Sorry.",Excuse | Précise | Action
+HK_COMPLAINT,HK_COMPLAINT_CONFLIT,CONFLIT,A2+,"Chambre pas nettoyée, client furieux","Gérer colère, agir vite","Client: 5 PM! Room still dirty! Ridiculous!
+Staff: Very sorry. Many rooms today. But no excuse. I clean now. 15 minutes.
+Client: I wait all day!
+Staff: I understand. I tell supervisor. Start now?
+Client: OK go.",Excuse | Pas défensif | Action | Reconnaît problème
+HK_COMPLAINT,HK_COMPLAINT_AVANCE_B1,CONFLIT_AVANCE,B1,Client accuse personnel de vol,"Rester calme, aider à chercher","Client: Someone stole my watch! Your cleaner!
+Staff: I understand. Sorry about your watch. Where you last see it?
+Client: Nightstand! Now gone!
+Staff: OK. Let me help look. Sometimes things fall. May I check?
+Client: OK but I know what happened!
+Staff: I understand. I also call supervisor... (checks) Sir, I found it. Behind nightstand.
+Client: Oh...
+Staff: No problem. I'm glad we found it.",Reste calme | Aide | Trouve solution | Ne humilie pas client
+HK_COMPLAINT,HK_COMPLAINT_AVANCE_A2,CONFLIT_AVANCE_SIMPLE,A2,Client dit objet disparu,Version simplifiée,"Client: My watch! Gone!
+Staff: Sorry. Where was it?
+Client: Table! Your cleaner take!
+Staff: Let me look... (checks) Here. Behind table.
+Client: Oh.
+Staff: No problem. Glad I found it.",Reste calme | Cherche | Trouve | Pas de commentaire
+HK_PROBLEM,HK_PROBLEM_NORMAL,NORMAL,A2,Clim ne marche pas,"Constater, appeler maintenance","Client: AC not working. Too hot.
+Staff: Let me check... Yes, not cooling. I call maintenance now.
+Client: How long?
+Staff: 15 to 30 minutes. I bring fan while you wait?
+Client: Yes please.
+Staff: OK. I bring and call you when fixed.",Vérifie | Appelle maintenance | Solution temporaire
+HK_PROBLEM,HK_PROBLEM_CONFLIT,CONFLIT,A2+,Problème pas réparé après 3 heures,"Escalader, changer chambre","Client: 3 hours! Still no hot water! Third time I call!
+Staff: Sorry. Unacceptable. I call supervisor now... They say plumber coming. 20 minutes.
+Client: Same thing 2 hours ago!
+Staff: You're right. I ask reception to change your room. OK?
+Client: Finally someone does something!
+Staff: Sorry it took long. I take you to reception now.",Reconnaît problème | Escalade | Propose changement | Accompagne
+REST_WELCOME,REST_WELCOME_NORMAL,NORMAL,A1+,Couple arrive pour dîner,"Accueillir, installer","Staff: Good evening. Welcome. Reservation?
+Client: No.
+Staff: No problem. Two people?
+Client: Yes.
+Staff: Window or inside?
+Client: Window.
+Staff: Follow me please... Here. Menus. Something to drink?
+Client: Water.
+Staff: Still or sparkling?
+Client: Still.
+Staff: Coming.",Accueil | Vérifie | Propose choix | Installe | Propose boisson
+REST_WELCOME,REST_WELCOME_CONFLIT,CONFLIT,A2,Restaurant complet,"Expliquer, proposer alternatives","Client: Table for four.
+Staff: Good evening. Sorry, we are full. Reservation?
+Client: No. But we are hotel guests!
+Staff: I understand. Sorry. I can offer: table in 45 minutes, or room service. Which?
+Client: 45 minutes too long!
+Staff: OK. I put you on list. I call your room when table ready. Room number?
+Client: 302.
+Staff: OK. I come find you.",S'excuse | Propose alternatives | Reste serviable
+REST_ORDER,REST_ORDER_NORMAL,NORMAL,A2,"Table de 2, commande complète","Prendre commande, confirmer","Staff: Ready to order?
+Client: Yes. Two white wines.
+Staff: OK. Food?
+Client: Fish and chicken salad.
+Staff: Fish - how cooked? Well done or medium?
+Client: Medium.
+Staff: OK. Two wines, fish medium, chicken salad. Correct?
+Client: Yes.
+Staff: Thank you. Drinks coming.",Demande si prêt | Prend boissons | Prend plats | Précisions | Confirme
+REST_ORDER,REST_ORDER_CONFLIT,CONFLIT,B1,Client a allergie,"Prendre au sérieux, vérifier","Client: Pasta please. But I'm allergic to nuts. Any in it?
+Staff: Let me check with kitchen... Sauce has pine nuts. Chef can make without. OK?
+Client: Yes. But no cross... uh... contact. Serious allergy.
+Staff: I understand. I tell chef. Prepared separately. Maybe grilled vegetables? Safe.
+Client: OK.
+Staff: Good. I make sure. No nuts. Anything else?",Prend au sérieux | Vérifie | Propose solution | Confirme avec cuisine
+REST_ORDER,REST_ORDER_CONFLIT_RAW,CONFLIT_RAW,A2,Client parle de façon imprécise sur allergie,Comprendre malgré langage imparfait,"Client: Pasta. But no nuts! Allergy! Very bad for me!
+Staff: OK. I check... Sauce has nuts. I ask chef: no nuts. OK?
+Client: Yes yes. And... separate. Not same place!
+Staff: OK. Separate. I tell chef. Vegetables? No nuts.
+Client: OK good.
+Staff: I make sure. Safe.",Comprend intention | Vérifie | Confirme
+REST_SERVE,REST_SERVE_NORMAL,NORMAL,A2,Service des plats,"Servir, vérifier satisfaction","Staff: Here is fish, madam. Chicken salad, sir. Careful, hot.
+Client: Thank you.
+Staff: Enjoy.
+(5 minutes later)
+Staff: Everything OK?
+Client: Yes, delicious.
+Staff: Good. Anything else? More bread?
+Client: Yes and more wine.
+Staff: Coming.",Identifie commandes | Avertit si chaud | Vérifie après 5 min | Propose plus
+REST_SERVE,REST_SERVE_CONFLIT,CONFLIT,A2+,Mauvais plat servi,"S'excuser, corriger","Staff: Here is steak, sir.
+Client: Wait! I ordered fish, not steak!
+Staff: Sorry! My mistake. I take back. Fish coming.
+Client: How long?
+Staff: 10 minutes. Sorry. Free appetizer while you wait?
+Client: OK.
+Staff: Thank you. I bring now. Fish is priority.",Excuse | Prend responsabilité | Donne délai | Compense
+REST_COMPLAINT,REST_COMPLAINT_NORMAL,NORMAL,A2,Plat froid,Corriger,"Client: This is cold.
+Staff: Sorry. I take back. New one coming.
+Client: OK.
+Staff: Sorry. Few minutes.",Excuse | Action | Délai
+REST_COMPLAINT,REST_COMPLAINT_CONFLIT,CONFLIT,B1,Client attend 45 minutes,"Gérer, compenser","Client: 45 minutes! Where is food?!
+Staff: Very sorry. I check now... Coming in 2 minutes.
+Client: Unacceptable.
+Staff: You're right. Sorry. Free dessert or drink?
+Client: OK.
+Staff: Thank you. Here is food. Dessert menu later.",Excuse | Vérifie | Timing précis | Compensation
+REST_COMPLAINT,REST_COMPLAINT_AVANCE_B1,CONFLIT_AVANCE,B1,Client refuse de payer,"Négocier, impliquer manager","Client: I'm not paying! Food was terrible!
+Staff: Sorry to hear that. What was wrong exactly?
+Client: Fish overcooked! Wine warm! One hour wait!
+Staff: I apologize. Let me ask manager... Manager says 50% off, and wine free. OK?
+Client: Should be free!
+Staff: I understand. I can't do more. But manager can speak with you if you want.
+Client: OK. 50%.
+Staff: Thank you. Here is bill. Sorry for your experience.",Écoute griefs | Implique manager | Propose compromis | Obtient paiement
+REST_COMPLAINT,REST_COMPLAINT_AVANCE_A2,CONFLIT_AVANCE_SIMPLE,A2,"Client mécontent, ne veut pas payer",Version simplifiée,"Client: Not paying! Bad food!
+Staff: Sorry. What problem?
+Client: Fish bad! Wait too long!
+Staff: Sorry. I ask manager... 50% off. OK?
+Client: Hmm. OK.
+Staff: Thank you. Here is bill.",Demande problème | Propose réduction | Obtient accord
+REST_BILL,REST_BILL_NORMAL,NORMAL,A2,Fin de repas,"Présenter addition, encaisser","Client: Bill please.
+Staff: Coffee? Dessert first?
+Client: No, just bill.
+Staff: Here. 85,000 francs.
+Client: Card OK?
+Staff: Yes. Enter PIN please... Thank you. Nice evening.
+Client: Thank you.",Propose dessert | Présente note | Encaisse | Remercie
+REST_BILL,REST_BILL_CONFLIT,CONFLIT,A2+,Client conteste charge,"Vérifier, corriger","Client: Wait. This wine? We had glasses, not bottle.
+Staff: Let me check... You're right. Sorry. I correct.
+Client: And this 10%?
+Staff: Service charge. On menu. Standard.
+Client: Didn't see.
+Staff: I understand. If not happy with service, I can ask manager.
+Client: No, service was OK. Just wine.
+Staff: OK. Here is correct bill. Sorry.",Vérifie | Corrige si erreur | Explique charges
+REST_BILL,REST_BILL_CONFLIT2,CONFLIT,A2,Carte bancaire refusée,Gérer discrètement,"Staff: Sorry sir, card declined. Try again?
+Client: (embarrassed) Strange...
+Staff: Happens sometimes. Another card? Or cash?
+Client: Another card.
+Staff: OK... Perfect. Thank you. Good evening.",Discret | Propose alternatives | Naturel
+SEC_CONTROL,SEC_CONTROL_NORMAL,NORMAL,A1+,"Personne entre, contrôle carte","Demander ID, vérifier","Staff: Good evening. Hotel guest?
+Client: Yes. Room 215.
+Staff: Room key please?
+Client: Here.
+Staff: Thank you Mr Johnson. Good evening.",Salutation | Question | Vérification | Remerciement
+SEC_CONTROL,SEC_CONTROL_CONFLIT,CONFLIT,A2+,Personne refuse de montrer carte,"Expliquer, proposer solution","Staff: Good evening. Room key please?
+Client: Why? I stay here!
+Staff: I understand. Standard procedure. Safety. Quick.
+Client: Ridiculous!
+Staff: Sorry. If you lost key, I go with you to reception.
+Client: OK fine.",Reste calme | Explique | Propose alternative
+SEC_CONTROL,SEC_CONTROL_CONFLIT_RAW,CONFLIT_RAW,A2,Client agressif refuse contrôle,Comprendre intention hostile,"Staff: Room key please?
+Client: No! I guest! Why you ask?
+Staff: Sorry. Security. Everyone.
+Client: Stupid!
+Staff: I understand. Come, reception can check. OK?
+Client: OK OK.",Reste calme | Propose solution | Obtient coopération
+SEC_DIRECT,SEC_DIRECT_NORMAL,NORMAL,A1+,Client demande direction,Indiquer clairement,"Client: Where is pool?
+Staff: Second floor. Elevator left. Go up. Turn right. You see signs.
+Client: Open now?
+Staff: Yes. Until 10 PM. You need room key.
+Client: I have.
+Staff: OK. Enjoy.",Directions claires | Infos horaires | Mentionne clé
+SEC_DIRECT,SEC_DIRECT_CONFLIT,CONFLIT,A2,Client veut accès zone fermée,"Expliquer, proposer alternative","Client: I want to go rooftop.
+Staff: Sorry. Rooftop closed after 8 PM. Safety.
+Client: But I'm hotel guest!
+Staff: I understand. Sorry. Opens 7 AM tomorrow. Bar on 5th floor has terrace. Same view. I show you?
+Client: OK I guess.
+Staff: Follow me.",Explique raison | Propose alternative | Accompagne
+SEC_RULE,SEC_RULE_NORMAL,NORMAL,A2,Client fume zone non-fumeur,Rappeler règle poliment,"Staff: Excuse me sir. Sorry, no smoking here. Smoking area outside, near garden.
+Client: Oh. Didn't know.
+Staff: No problem. For all guests comfort. I show you?
+Client: No, I find it.
+Staff: Thank you.",Poli | Explique | Indique alternative
+SEC_RULE,SEC_RULE_CONFLIT,CONFLIT,B1,Client refuse de respecter règle,"Maintenir règle, expliquer conséquences","Staff: Sir, no glass bottles at pool. Safety. We have plastic cups at bar.
+Client: Stupid rule. I'm careful.
+Staff: I understand. But hotel policy. Insurance. If accident, hotel responsible.
+Client: I don't care your insurance!
+Staff: I understand. But I can't make exception. Manager can explain if you want. Or I bring plastic cup now.
+Client: Fine. Plastic cup.
+Staff: Thank you. Coming now.",Explique raison | Reste ferme | Propose alternative | Obtient conformité
+SEC_CONFLICT,SEC_CONFLICT_NORMAL,NORMAL,A2+,Dispute entre clients au bar,"Séparer, calmer","Staff: Good evening. Everything OK?
+Client1: This guy bothering us!
+Client2: I did nothing!
+Staff: Please, calm. Sir, other table? Free drink.
+Client2: OK.
+Staff: Thank you. Sorry for trouble. Good evening.",Intervention calme | Sépare | Propose solution | Geste
+SEC_CONFLICT,SEC_CONFLICT_CONFLIT,CONFLIT,B1,Client agressif refuse de se calmer,"Contenir, avertir","Client: Don't tell me what to do!
+Staff: Sir, I understand you're upset. Please lower voice. Other guests.
+Client: I don't care!
+Staff: Sir, if you continue, I must ask you to leave bar. I don't want that. Can we talk calm?
+Client: (pauses) Fine.
+Staff: Thank you. How can I help?",Reste calme | Avertissement clair | Donne choix | Désescalade
+SEC_CONFLICT,SEC_CONFLICT_AVANCE_B1,CONFLIT_AVANCE,B1,Client ivre menace physiquement,"Protéger sécurité, désescalader","Client: (shouting) Get out of my way! I hit you!
+Staff: Sir, I understand you're upset. I won't fight. Let's stay calm.
+Client: I destroy this place!
+Staff: I hear you. I don't want anyone hurt. My colleagues coming. Please, let's sit and talk.
+Client: (swaying) You don't understand...
+Staff: I want to understand. But stay calm. What happened?
+Client: Lost my wallet... everything...
+Staff: Sorry to hear. Let me help find it. When you last have it? Check together.
+Client: OK... OK.
+Staff: Good. Sit here. Water coming. We figure this out.",Ne répond pas à menace | Reste calme | Appelle renfort | Cherche cause | Désescalade
+SEC_CONFLICT,SEC_CONFLICT_AVANCE_A2,CONFLIT_AVANCE_SIMPLE,A2,Client très en colère,Version simplifiée,"Client: (loud) Go away! I'm angry!
+Staff: Sir, please calm. What's wrong?
+Client: My wallet! Gone!
+Staff: OK. Let me help find. Where you last see?
+Client: I don't know...
+Staff: OK. Sit. Water coming. We look together.",Reste calme | Demande problème | Propose aide
+SEC_INCIDENT,SEC_INCIDENT_NORMAL,NORMAL,A2,Plainte bruit 23h,Intervenir poliment,"Staff: (knocks) Hotel security.
+Client: Yes?
+Staff: Good evening. Noise complaint from neighbors. Please lower volume?
+Client: Oh sorry. Didn't realize.
+Staff: No problem. Thank you. Good evening.",S'identifie | Explique | Demande polie | Accepte excuse
+SEC_INCIDENT,SEC_INCIDENT_CONFLIT,CONFLIT,B1,Client refuse de baisser volume,"Maintenir position, avertir","Staff: Sir, please lower volume. Guests complaining.
+Client: Not late! They can deal!
+Staff: I understand. But hotel policy: quiet after 10 PM. If continues, manager involved. Consequences possible.
+Client: You threatening me?
+Staff: No sir. Explaining. I prefer solve now. Can you help?
+Client: (pause) Fine. We be quieter.",Ferme | Explique conséquences | Pas de menace | Propose résolution

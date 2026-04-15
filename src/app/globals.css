@@ -1,0 +1,42 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ============================================
+   DESIGN SYSTEM — Premium Light
+   #006633 primaire · #4CAF50 succès · blanc pur
+   ============================================ */
+
+:root {
+  --clr-primary:   #006633;
+  --clr-primary-d: #004d26;
+  --clr-success:   #4CAF50;
+  --clr-text-1:    #000000;
+  --clr-text-2:    #333333;
+  --clr-text-3:    #666666;
+  --clr-border:    #E5E7EB;
+  --clr-surface:   #F5F5F5;
+  --clr-bg:        #FFFFFF;
+}
+
+/* Reset touch */
+* { -webkit-tap-highlight-color: transparent; }
+
+html {
+  font-size: 16px;
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  font-family: var(--font-poppins), 'Poppins', system-ui, sans-serif;
+  background-color: #ffffff;
+  color: #000000;
+  min-height: 100dvh;
+}
+
+button, input, select, textarea, a { min-height: 44px; font-size: 1rem; }
+
+:focus-visible {
+  outline: 2px solid #006633;
+  outline-offset: 2px;
+}

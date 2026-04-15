@@ -1,0 +1,23 @@
+# Dépendances
+node_modules/
+
+# Build Next.js
+.next/
+dist/
+out/
+
+# Fichiers secrets (NE JAMAIS COMMIT)
+.env.local
+.env*.local
+
+# Système
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+
+# TypeScript cache
+*.tsbuildinfo
+next-env.d.ts

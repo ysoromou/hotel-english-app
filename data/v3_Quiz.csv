@@ -1,0 +1,46 @@
+Action_ID,Quiz_ID,Type_quiz,Niveau,Question,A,B,C,Reponse
+REC_CHECKIN,REC_CHECKIN_Q01,SITUATION,A1,Le client arrive. Que dites-vous en premier ?,Passport please,Room 302,Welcome to the hotel,C
+REC_CHECKIN,REC_CHECKIN_Q02,TRADUCTION,A1,Comment demander si le client a une réservation ?,Reservation?,Do you have a reservation?,Book here?,B
+REC_CHECKIN,REC_CHECKIN_Q03,CONFLIT,B1,Le client est frustré car sa réservation est introuvable. Que dites-vous ?,Not my problem,I completely understand your frustration,Wait,B
+REC_CHECKOUT,REC_CHECKOUT_Q01,SITUATION,A1,Le client veut partir. Que demandez-vous d'abord ?,Money please,Are you checking out?,Goodbye,B
+REC_CHECKOUT,REC_CHECKOUT_Q02,CONFLIT,A2,Le client conteste un montant. Quelle réponse ?,You're wrong,Let me verify with housekeeping,Pay now,B
+REC_INFO,REC_INFO_Q01,TRADUCTION,A1,Comment dire que le Wi-Fi est gratuit ?,Wi-Fi free,The Wi-Fi is free,No pay Wi-Fi,B
+REC_COMPLAINT,REC_COMPLAINT_Q01,SITUATION,A2,Un client est mécontent. Que dites-vous ?,Not my problem,I'm sorry to hear that,OK,B
+REC_COMPLAINT,REC_COMPLAINT_Q02,CONFLIT,A2,Le client exige de parler au manager. Que répondez-vous ?,No manager here,Wait,I'll call them right away,C
+REC_COMPLAINT,REC_COMPLAINT_Q03,CONFLIT,B1,Le client menace d'écrire sur TripAdvisor. Première réaction ?,Go ahead!,Let me understand what happened,I'll call security,B
+REC_CHANGE,REC_CHANGE_Q01,SITUATION,A2,Le client veut changer de chambre. Première chose à faire ?,Say no,Check availability,Give a new key,B
+HK_ENTRY,HK_ENTRY_Q01,TRADUCTION,A1,Comment demander la permission d'entrer ?,I enter,Open door,May I come in?,C
+HK_ENTRY,HK_ENTRY_Q02,CONFLIT,A2,Le client dit 'Come back later!'. Que répondez-vous ?,"No, I clean now","Of course, what time would be better?",Why?,B
+HK_CLEAN,HK_CLEAN_Q01,SITUATION,A1,Le client demande combien de temps ça prend. Que dites-vous ?,Long time,About 20 minutes,I don't know,B
+HK_CLEAN,HK_CLEAN_Q02,CONFLIT,A2,Le client dit que vous prenez trop de temps. Que faites-vous ?,Continue anyway,Apologize and offer to finish later,Leave immediately,B
+HK_REQUEST,HK_REQUEST_Q01,SITUATION,A1,Le client demande des serviettes. Que demandez-vous ?,Why?,How many would you like?,No more,B
+HK_REQUEST,HK_REQUEST_Q02,CONFLIT,A2,Le client demande quelque chose que l'hôtel n'a pas. Que dites-vous ?,Impossible,"I'm sorry, we don't have that. Can I suggest an alternative?",Ask another hotel,B
+HK_COMPLAINT,HK_COMPLAINT_Q01,CONFLIT,A2,Le client se plaint que la chambre n'est pas nettoyée. Première réponse ?,Not my fault,"I'm really sorry, I'll clean it right now",OK,B
+HK_COMPLAINT,HK_COMPLAINT_Q02,CONFLIT,B1,Le client vous accuse d'avoir volé quelque chose. Que faites-vous ?,Deny angrily,Stay calm and offer to help look for it,Call the police,B
+HK_PROBLEM,HK_PROBLEM_Q01,SITUATION,A2,La climatisation ne marche pas. Première chose à faire ?,Say it's not your job,Call maintenance and offer a temporary solution,Ignore,B
+HK_PROBLEM,HK_PROBLEM_Q02,CONFLIT,A2+,Le problème n'est pas réparé depuis 3 heures. Que proposez-vous ?,Wait more,Ask reception to move them to another room,Nothing you can do,B
+REST_WELCOME,REST_WELCOME_Q01,SITUATION,A1,Un couple arrive. Que dites-vous en premier ?,Sit down,"Good evening, welcome. Do you have a reservation?",What do you want?,B
+REST_WELCOME,REST_WELCOME_Q02,CONFLIT,A2,Le restaurant est complet. Que proposez-vous ?,Go away,A table in 45 minutes or room service,Nothing,B
+REST_ORDER,REST_ORDER_Q01,TRADUCTION,A1,Comment demander ce que le client veut boire ?,Drink?,What would you like to drink?,Water?,B
+REST_ORDER,REST_ORDER_Q02,CONFLIT,B1,Le client dit qu'il a une allergie grave aux noix. Que faites-vous ?,Don't worry about it,Check with the kitchen and ensure separate preparation,Refuse to serve him,B
+REST_ORDER,REST_ORDER_Q03,SITUATION,A2,"Après avoir pris la commande, que faites-vous ?",Walk away,Repeat the order to confirm,Bring the food,B
+REST_SERVE,REST_SERVE_Q01,SITUATION,A1,Que dites-vous en apportant les plats ?,Here,"Here is your grilled fish. Careful, the plate is hot.",Food,B
+REST_SERVE,REST_SERVE_Q02,CONFLIT,A2,Vous avez apporté le mauvais plat. Que dites-vous ?,Eat it anyway,"I'm sorry, that's my mistake. Let me bring the right dish.",Not my fault,B
+REST_SERVE,REST_SERVE_Q03,SITUATION,A2,Quand vérifier si tout va bien ?,Never,About 5 minutes after serving,When they leave,B
+REST_COMPLAINT,REST_COMPLAINT_Q01,CONFLIT,A2,Le client dit que son plat est froid. Que faites-vous ?,It's not cold,"I'm sorry, I'll bring you a fresh one",Eat faster,B
+REST_COMPLAINT,REST_COMPLAINT_Q02,CONFLIT,B1,Le client attend depuis 45 minutes. Que faites-vous ?,Ignore,"Apologize, check status, give precise timing, offer compensation",Tell them to wait more,B
+REST_COMPLAINT,REST_COMPLAINT_Q03,CONFLIT,B1+,Le client refuse de payer car le repas était mauvais. Que faites-vous ?,Call the police,"Listen, involve the manager, propose a compromise",Let them leave,B
+REST_BILL,REST_BILL_Q01,SITUATION,A1,"Avant de donner l'addition, que proposez-vous ?",Nothing,Coffee or dessert,Another main course,B
+REST_BILL,REST_BILL_Q02,CONFLIT,A2,Le client conteste une charge sur la facture. Que faites-vous ?,Refuse to change,Verify and correct if there's an error,Ignore,B
+REST_BILL,REST_BILL_Q03,CONFLIT,A2,La carte du client est refusée. Que faites-vous ?,Call security,"Suggest trying another card or paying cash, discreetly",Embarrass them,B
+SEC_CONTROL,SEC_CONTROL_Q01,TRADUCTION,A1,Comment demander la carte de chambre poliment ?,Card!,Show key,"Your room key, please",C
+SEC_CONTROL,SEC_CONTROL_Q02,CONFLIT,A2,Le client refuse de montrer sa carte. Que dites-vous ?,You can't enter!,It's standard procedure for everyone's safety,Police!,B
+SEC_DIRECT,SEC_DIRECT_Q01,SITUATION,A1,Le client demande où est la piscine. Que faites-vous ?,Point vaguely,Give clear directions and mention hours,I don't know,B
+SEC_DIRECT,SEC_DIRECT_Q02,CONFLIT,A2,Le client veut accéder à une zone fermée. Que faites-vous ?,Let them in,Explain why it's closed and offer an alternative,Block them silently,B
+SEC_RULE,SEC_RULE_Q01,SITUATION,A2,Le client fume dans une zone non-fumeur. Que dites-vous ?,Stop!,"Excuse me, smoking isn't allowed here. There's a designated area outside.",I'll call the manager,B
+SEC_RULE,SEC_RULE_Q02,CONFLIT,B1,Le client refuse de respecter une règle de sécurité. Que faites-vous ?,Give up,"Explain the reason (safety/insurance), stay firm, offer escalation to manager",Use force,B
+SEC_CONFLICT,SEC_CONFLICT_Q01,SITUATION,A2,Un client est agressif. Première chose à dire ?,Calm down!,I understand you're upset,Go away,B
+SEC_CONFLICT,SEC_CONFLICT_Q02,CONFLIT,B1,Le client ne se calme pas. Que faites-vous ?,Hit him,Give a clear warning and offer a solution,Run away,B
+SEC_CONFLICT,SEC_CONFLICT_Q03,CONFLIT,B1+,Le client ivre menace de frapper. Priorité ?,Fight back,"Stay calm, call for backup, try to understand the cause",Lock him in a room,B
+SEC_INCIDENT,SEC_INCIDENT_Q01,SITUATION,A2,Vous intervenez pour bruit à 23h. Comment commencez-vous ?,Open up!,Hotel security. We've received a noise complaint.,Be quiet!,B
+SEC_INCIDENT,SEC_INCIDENT_Q02,CONFLIT,B1,Le client refuse de baisser le volume. Que faites-vous ?,Give up,"Explain policy, warn about consequences, offer to resolve now",Call the police immediately,B

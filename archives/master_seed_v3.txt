@@ -1,0 +1,22 @@
+-- MASTER SEED (V3) — ordre sûr
+
+-- DB neuve:
+-- 1) Exécuter 000_schema_v3.sql
+-- 2) Puis exécuter les imports dans cet ordre:
+
+-- Core (tous métiers)
+-- import_1_actions.sql
+-- import_2_phrases.sql
+-- import_3_quiz.sql
+-- import_4_scenarios.sql
+
+-- Réception (extension premium)
+-- import_reception_actions_20.sql
+-- import_reception_phrases_320.sql
+-- import_reception_phrases_patch.sql
+-- import_reception_scenarios_12.sql
+-- import_reception_quiz_premium.sql
+
+-- DB existante:
+-- 1) Exécuter 001_migration_v3.sql
+-- 2) Puis rejouer seulement les imports nécessaires (ex: réception premium).

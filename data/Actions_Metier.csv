@@ -1,0 +1,21 @@
+Métier,Action_ID,Action,Description,Niveau_cible,Critique_conflit
+Réception,REC_CHECKIN,Réaliser un check-in complet,"Accueillir, vérifier réservation, demander ID, donner clé, expliquer services",A2,Oui
+Réception,REC_CHECKOUT,Gérer un check-out,"Vérifier consommations, présenter facture, encaisser, remercier",A2,Oui
+Réception,REC_INFO,Donner une information standard,"Petit-déjeuner, Wi-Fi, horaires, services",A1+,Non
+Réception,REC_COMPLAINT,Gérer une réclamation,"Écouter, s'excuser, proposer solution, escalader si nécessaire",B1,Oui
+Réception,REC_CHANGE,Changer de chambre,"Proposer alternative, organiser transfert, s'excuser",A2+,Oui
+Housekeeping,HK_ENTRY,Demander l'autorisation d'entrer,"Frapper, s'identifier, demander permission, accepter refus",A1,Non
+Housekeeping,HK_CLEAN,Expliquer le nettoyage,"Durée, actions, fournitures",A1+,Non
+Housekeeping,HK_REQUEST,Répondre à une demande client,"Serviettes, produits, équipements",A2,Non
+Housekeeping,HK_COMPLAINT,Gérer une plainte chambre,"Chambre sale, équipement défaillant, oubli",A2+,Oui
+Housekeeping,HK_PROBLEM,Signaler un problème technique,"Identifier, expliquer, contacter maintenance",A2,Non
+Restaurant,REST_WELCOME,Accueillir et installer,"Saluer, demander nombre, accompagner, donner menu",A1+,Non
+Restaurant,REST_ORDER,Prendre une commande complète,"Boissons, plats, confirmer, précisions",A2,Non
+Restaurant,REST_SERVE,Servir et vérifier satisfaction,"Apporter, vérifier, proposer suite",A2,Non
+Restaurant,REST_COMPLAINT,Gérer un problème de service,"Plat incorrect, attente, qualité",B1,Oui
+Restaurant,REST_BILL,Présenter l'addition et encaisser,"Donner note, expliquer, encaisser, remercier",A2,Non
+Sécurité,SEC_CONTROL,Contrôler un accès,"Demander carte, vérifier, autoriser/refuser",A1+,Oui
+Sécurité,SEC_DIRECT,Orienter un client,"Écouter demande, indiquer direction, accompagner",A1+,Non
+Sécurité,SEC_RULE,Expliquer une règle,"Annoncer interdiction, justifier, obtenir conformité",A2,Oui
+Sécurité,SEC_CONFLICT,Désamorcer une tension,"Calmer, écouter, proposer solution, escalader",B1,Oui
+Sécurité,SEC_INCIDENT,Gérer un incident nocturne,"Bruit, plainte voisin, intervention chambre",A2+,Oui
