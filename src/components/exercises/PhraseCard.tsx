@@ -13,40 +13,25 @@ interface PhraseCardProps {
   onComplete: () => void
 }
 
-// Lecture TTS — charge les voix de façon fiable (les navigateurs les chargent en async)
+// Lecture TTS — via notre proxy serveur /api/tts (fonctionne sur tous les navigateurs)
+let currentAudio: HTMLAudioElement | null = null
+
 function speakText(text: string, onEnd?: () => void) {
-  if (typeof window === 'undefined' || !window.speechSynthesis) {
-    onEnd?.()
-    return
+  if (typeof window === 'undefined') { onEnd?.(); return }
+
+  // Arrêter l'audio en cours
+  if (currentAudio) {
+    currentAudio.pause()
+    currentAudio = null
   }
 
-  window.speechSynthesis.cancel()
+  const url = `/api/tts?text=${encodeURIComponent(text)}`
+  const audio = new Audio(url)
+  currentAudio = audio
 
-  function doSpeak() {
-    const utterance = new SpeechSynthesisUtterance(text)
-    utterance.lang = 'en-GB'
-    utterance.rate = 0.85
-
-    const voices = window.speechSynthesis.getVoices()
-    const enVoice =
-      voices.find(v => v.lang === 'en-GB') ||
-      voices.find(v => v.lang.startsWith('en-GB')) ||
-      voices.find(v => v.lang.startsWith('en'))
-    if (enVoice) utterance.voice = enVoice
-
-    utterance.onend = () => onEnd?.()
-    utterance.onerror = () => onEnd?.()
-
-    window.speechSynthesis.speak(utterance)
-  }
-
-  // Les voix ne sont pas forcément prêtes immédiatement
-  const voices = window.speechSynthesis.getVoices()
-  if (voices.length > 0) {
-    doSpeak()
-  } else {
-    window.speechSynthesis.addEventListener('voiceschanged', doSpeak, { once: true })
-  }
+  audio.onended = () => { currentAudio = null; onEnd?.() }
+  audio.onerror = () => { currentAudio = null; onEnd?.() }
+  audio.play().catch(() => { currentAudio = null; onEnd?.() })
 }
 
 export default function PhraseCard({ phraseFr, phraseEn, phase, voiceType, onComplete }: PhraseCardProps) {

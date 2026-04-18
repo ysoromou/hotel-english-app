@@ -29,24 +29,24 @@ function shuffleWithSeed<T>(arr: T[], seed: number): T[] {
   return a
 }
 
-// Lecture TTS — synthèse vocale du navigateur
+// Lecture TTS — via notre proxy serveur /api/tts (fonctionne sur tous les navigateurs)
+let currentAudio: HTMLAudioElement | null = null
+
 function speakText(text: string, onEnd?: () => void) {
-  if (typeof window === 'undefined' || !window.speechSynthesis) return
-  window.speechSynthesis.cancel()
+  if (typeof window === 'undefined') { onEnd?.(); return }
 
-  const utterance = new SpeechSynthesisUtterance(text)
-  utterance.lang = 'en-GB'
-  utterance.rate = 0.9
+  if (currentAudio) {
+    currentAudio.pause()
+    currentAudio = null
+  }
 
-  const voices = window.speechSynthesis.getVoices()
-  const enVoice = voices.find(v => v.lang.startsWith('en-GB'))
-    || voices.find(v => v.lang.startsWith('en'))
-  if (enVoice) utterance.voice = enVoice
+  const url = `/api/tts?text=${encodeURIComponent(text)}`
+  const audio = new Audio(url)
+  currentAudio = audio
 
-  if (onEnd) utterance.onend = onEnd
-  utterance.onerror = () => onEnd?.()
-
-  window.speechSynthesis.speak(utterance)
+  audio.onended = () => { currentAudio = null; onEnd?.() }
+  audio.onerror = () => { currentAudio = null; onEnd?.() }
+  audio.play().catch(() => { currentAudio = null; onEnd?.() })
 }
 
 export default function QCMExercise({
@@ -96,10 +96,6 @@ export default function QCMExercise({
     () => shuffleWithSeed(targetTokens, question.length * 7 + 31),
     [targetTokens, question]
   )
-  const remainingTokens = shuffledTokens.filter(
-    (_, i) => !builtSequence.includes(String(i))
-  )
-
   function handleTokenTap(globalIndex: number) {
     if (orderValidated) return
     setBuiltSequence(prev => [...prev, String(globalIndex)])
