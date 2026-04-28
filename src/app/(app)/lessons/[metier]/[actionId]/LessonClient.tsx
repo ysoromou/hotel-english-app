@@ -3,20 +3,21 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
+import { insertLearningSessionWithFallback } from '@/lib/learning-sessions'
 import PhraseCard from '@/components/exercises/PhraseCard'
 import QCMExercise from '@/components/exercises/QCMExercise'
 import TranslationExercise from '@/components/exercises/TranslationExercise'
 import ProgressBar from '@/components/ui/ProgressBar'
 import { ArrowLeft } from 'lucide-react'
 
-// Composant client qui gère le déroulement de la leçon
-// Enchaîne : 5 phrases → 2 traductions → quiz disponibles
-// Sauvegarde la progression dans Supabase à la fin
+// Composant client qui gere le deroulement de la lecon
+// Enchaine : 5 phrases -> 2 traductions -> quiz disponibles
+// Sauvegarde la progression dans Supabase a la fin
 
 const phaseLabels: Record<string, string> = {
-  decouverte: 'Découverte',
+  decouverte: 'Decouverte',
   pratique: 'Pratique',
-  maitrise: 'Maîtrise',
+  maitrise: 'Maitrise',
 }
 
 interface LessonClientProps {
@@ -47,7 +48,7 @@ interface LessonClientProps {
   userId: string
 }
 
-// Construire la séquence d'exercices pour la leçon
+// Construire la sequence d'exercices pour la lecon
 function buildExerciseSequence(
   phrases: LessonClientProps['phrases'],
   quizzes: LessonClientProps['quizzes']
@@ -58,21 +59,18 @@ function buildExerciseSequence(
     | { type: 'quiz'; data: LessonClientProps['quizzes'][0] }
   > = []
 
-  // Prendre les 5 premières phrases (écoute/lecture)
   const phrasesToShow = phrases.slice(0, 5)
-  for (const p of phrasesToShow) {
-    steps.push({ type: 'phrase', data: p })
+  for (const phrase of phrasesToShow) {
+    steps.push({ type: 'phrase', data: phrase })
   }
 
-  // Ajouter 2 exercices de traduction (phrases suivantes)
   const phrasesForTranslation = phrases.slice(5, 7)
-  for (const p of phrasesForTranslation) {
-    steps.push({ type: 'translation', data: p })
+  for (const phrase of phrasesForTranslation) {
+    steps.push({ type: 'translation', data: phrase })
   }
 
-  // Ajouter tous les quiz disponibles
-  for (const q of quizzes) {
-    steps.push({ type: 'quiz', data: q })
+  for (const quiz of quizzes) {
+    steps.push({ type: 'quiz', data: quiz })
   }
 
   return steps
@@ -86,56 +84,75 @@ export default function LessonClient({
   const [correctCount, setCorrectCount] = useState(0)
   const [totalAnswered, setTotalAnswered] = useState(0)
   const [finished, setFinished] = useState(false)
+  const [sessionStartedAt] = useState(() => new Date().toISOString())
   const router = useRouter()
   const supabase = createClient()
 
   const progress = steps.length > 0 ? Math.round((currentStep / steps.length) * 100) : 0
 
-  async function saveProgress() {
-    // Garde-fou : ne pas sauvegarder si données essentielles manquantes
+  async function saveProgress(nextCorrectCount: number, nextTotalAnswered: number) {
     if (!userId || !action?.id) {
-      console.warn('saveProgress: userId ou action.id manquant, sauvegarde ignorée')
+      console.warn('saveProgress: userId ou action.id manquant, sauvegarde ignoree')
       return
     }
 
-    try {
-      const score = totalAnswered > 0 ? Math.round((correctCount / totalAnswered) * 100) : 0
+    const score = nextTotalAnswered > 0 ? Math.round((nextCorrectCount / nextTotalAnswered) * 100) : 0
+    const completedAt = new Date().toISOString()
 
+    try {
       await supabase.from('user_action_progress').upsert({
         user_id: userId,
         action_id: action.id,
-        phrases_completed: Math.min(currentStep, phrases.length),
+        phrases_completed: phrases.length,
         phrases_total: phrases.length,
         quiz_score_avg: score,
-        quiz_attempts: totalAnswered,
+        quiz_attempts: nextTotalAnswered,
         statut: 'completed',
-        derniere_activite: new Date().toISOString(),
+        derniere_activite: completedAt,
       }, {
         onConflict: 'user_id,action_id',
       })
 
-      // Recalculer la progression globale (badges, XP, streak, etc.)
-      fetch('/api/stats/refresh', { method: 'POST' }).catch(() => {})
+      try {
+        await insertLearningSessionWithFallback(supabase, {
+          user_id: userId,
+          action_id: action.id,
+          started_at: sessionStartedAt,
+          ended_at: completedAt,
+          score,
+          exercises_done: steps.length,
+        })
+      } catch (sessionError) {
+        console.error('saveProgress: erreur learning_sessions', sessionError)
+      }
+
+      const refreshResponse = await fetch('/api/stats/refresh', { method: 'POST' })
+      if (!refreshResponse.ok) {
+        console.warn('saveProgress: refresh progression non OK', refreshResponse.status)
+      }
     } catch (err) {
       console.error('saveProgress: erreur Supabase', err)
     }
   }
 
   function handleNext(isCorrect?: boolean) {
-    if (isCorrect !== undefined) {
-      setTotalAnswered(prev => prev + 1)
-      if (isCorrect) setCorrectCount(prev => prev + 1)
+    const countsAsAnswer = isCorrect !== undefined
+    const nextTotalAnswered = countsAsAnswer ? totalAnswered + 1 : totalAnswered
+    const nextCorrectCount = countsAsAnswer && isCorrect ? correctCount + 1 : correctCount
+
+    if (countsAsAnswer) {
+      setTotalAnswered(nextTotalAnswered)
+      setCorrectCount(nextCorrectCount)
     }
 
     if (currentStep + 1 >= steps.length) {
       setFinished(true)
-      saveProgress()
+      void saveProgress(nextCorrectCount, nextTotalAnswered)
     } else {
-      setCurrentStep(prev => prev + 1)
+      setCurrentStep((prev) => prev + 1)
     }
   }
 
-  // Écran de fin
   if (finished) {
     const score = totalAnswered > 0 ? Math.round((correctCount / totalAnswered) * 100) : 100
     const isGood = score >= 60
@@ -156,7 +173,6 @@ export default function LessonClient({
             {action.action}
           </p>
 
-          {/* Stats */}
           <div className="grid grid-cols-2 gap-4 mt-8">
             <div className="bg-white rounded-xl p-4 shadow-sm">
               <p className="text-3xl font-bold text-primary">{score}%</p>
@@ -164,11 +180,10 @@ export default function LessonClient({
             </div>
             <div className="bg-white rounded-xl p-4 shadow-sm">
               <p className="text-3xl font-bold text-success">{correctCount}/{totalAnswered}</p>
-              <p className="text-xs text-gray-500 mt-1">Bonnes réponses</p>
+              <p className="text-xs text-gray-500 mt-1">Bonnes reponses</p>
             </div>
           </div>
 
-          {/* Boutons */}
           <div className="mt-8 space-y-3">
             <button
               onClick={() => {
@@ -179,7 +194,7 @@ export default function LessonClient({
               }}
               className="w-full py-3.5 bg-primary hover:bg-primary-dark text-white font-semibold rounded-xl transition-colors"
             >
-              Refaire la leçon
+              Refaire la lecon
             </button>
             <button
               onClick={() => router.push(`/lessons/${metierPrefix}`)}
@@ -193,15 +208,12 @@ export default function LessonClient({
     )
   }
 
-  // Écran d'exercice en cours
   const step = steps[currentStep]
 
   return (
     <div className="min-h-dvh bg-gray-50/50">
-      {/* Barre Header Clean White */}
       <div className="bg-white px-5 pt-6 pb-4 sticky top-0 z-20 shadow-sm">
         <div className="max-w-md mx-auto flex flex-col gap-5">
-          {/* Header row */}
           <div className="flex items-center gap-3">
             <button
               onClick={() => router.push(`/lessons/${metierPrefix}`)}
@@ -210,19 +222,19 @@ export default function LessonClient({
               <ArrowLeft size={24} strokeWidth={2.5} />
             </button>
             <h1 className="text-lg font-extrabold text-gray-900 tracking-tight line-clamp-1 flex-1">
-              {step.type === 'phrase' && phaseLabels[step.data.phase as keyof typeof phaseLabels] || 'Quiz'} - {action.action}
+              {(step.type === 'phrase' && phaseLabels[step.data.phase as keyof typeof phaseLabels]) || 'Quiz'} - {action.action}
             </h1>
           </div>
-          
-          {/* Progress Row */}
+
           <div className="px-1">
-            <p className="text-[11px] font-black uppercase text-brand-dark tracking-widest mb-2">Question {currentStep + 1} sur {steps.length}</p>
+            <p className="text-[11px] font-black uppercase text-brand-dark tracking-widest mb-2">
+              Question {currentStep + 1} sur {steps.length}
+            </p>
             <ProgressBar value={progress} color="bg-brand-dark" size="md" />
           </div>
         </div>
       </div>
 
-      {/* Contenu de l'exercice */}
       <div className="px-5 pt-8 pb-24">
         <div className="max-w-md mx-auto">
           {step.type === 'phrase' && (
