@@ -1,0 +1,212 @@
+export type PositioningSectionKey = 'reading' | 'listening' | 'vocabulary' | 'speaking'
+
+export type PositioningLevelKey = 'A1' | 'A2' | 'B1' | 'B2'
+
+export type PositioningInviteStatus =
+  | 'not_sent'
+  | 'sent'
+  | 'opened'
+  | 'started'
+  | 'completed'
+  | 'expired'
+
+export type PositioningAttemptStatus = 'not_started' | 'in_progress' | 'completed' | 'expired'
+
+export interface PositioningQuestionOption {
+  id: string
+  text: string
+}
+
+export interface PositioningQuestion {
+  id: string
+  section: PositioningSectionKey
+  prompt: string
+  promptAudio?: string
+  audioUrl?: string
+  level: PositioningLevelKey
+  type: 'mcq'
+  options: PositioningQuestionOption[]
+  correctOptionId: string
+}
+
+export interface LevelRule {
+  key: PositioningLevelKey
+  label: string
+  minScore: number
+  maxScore: number
+  recommendedGroupPrefix: string
+}
+
+export interface ImportFieldDefinition {
+  key:
+    | 'hotel'
+    | 'organization'
+    | 'first_name'
+    | 'last_name'
+    | 'full_name'
+    | 'phone'
+    | 'email'
+    | 'department'
+    | 'external_ref'
+  label: string
+  required?: boolean
+}
+
+export type ImportMapping = Record<string, string>
+
+export interface ImportPreviewRow {
+  rowNumber: number
+  values: Record<string, string>
+  normalized: {
+    hotel: string
+    organization: string | null
+    first_name: string
+    last_name: string
+    phone: string
+    normalized_phone: string | null
+    email: string | null
+    department: string | null
+    external_ref: string | null
+  }
+  errors: string[]
+  duplicateReasons: string[]
+}
+
+export interface ImportPreviewSummary {
+  totalRows: number
+  validRows: number
+  duplicateRows: number
+  invalidRows: number
+  importableRows: number
+}
+
+export interface ParticipantRow {
+  id: string
+  hotel: string
+  organization: string | null
+  first_name: string
+  last_name: string
+  full_name: string
+  phone: string
+  normalized_phone: string | null
+  email: string | null
+  department: string | null
+  external_ref: string | null
+  status: string
+  created_at: string
+  updated_at: string
+}
+
+export interface TestInviteRow {
+  id: string
+  participant_id: string
+  token_hash: string | null
+  expires_at: string | null
+  deadline_at: string | null
+  status: PositioningInviteStatus
+  sent_at: string | null
+  opened_at: string | null
+  started_at: string | null
+  completed_at: string | null
+  last_reminder_at: string | null
+  access_version: number
+  created_at: string
+  updated_at: string
+}
+
+export interface TestAttemptRow {
+  id: string
+  participant_id: string
+  invite_id: string
+  status: PositioningAttemptStatus
+  started_at: string | null
+  submitted_at: string | null
+  completed_at: string | null
+  total_score: number | null
+  estimated_level: string | null
+  recommended_group: string | null
+  duration_seconds: number | null
+  device_info: Record<string, unknown> | null
+  anomalies_json: unknown[] | null
+  raw_result_json: Record<string, unknown> | null
+  created_at: string
+  updated_at: string
+}
+
+export interface TestSectionResultRow {
+  id: string
+  attempt_id: string
+  section_key: PositioningSectionKey
+  score: number
+  max_score: number
+  details_json: Record<string, unknown> | null
+  created_at: string
+}
+
+export interface OutboundMessageRow {
+  id: string
+  participant_id: string
+  invite_id: string | null
+  channel: string
+  destination: string
+  message_body: string
+  provider: string
+  message_kind: string
+  status: 'queued' | 'prepared' | 'sent' | 'failed'
+  provider_message_id: string | null
+  provider_payload: Record<string, unknown> | null
+  sent_at: string | null
+  error_message: string | null
+  created_at: string
+}
+
+export interface GroupRecommendationRow {
+  id: string
+  participant_id: string
+  attempt_id: string | null
+  recommended_group: string
+  rationale: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface AttemptResponsesMap {
+  [questionId: string]: {
+    answer: string
+    answeredAt: string
+  }
+}
+
+export interface AttemptProgressState {
+  responses: AttemptResponsesMap
+  currentQuestionIndex: number
+  sectionOrder: PositioningSectionKey[]
+  testVersion: string
+}
+
+export interface SectionScore {
+  sectionKey: PositioningSectionKey
+  score: number
+  maxScore: number
+  percentage: number
+}
+
+export interface ComputedAttemptResult {
+  totalCorrect: number
+  totalQuestions: number
+  totalScore: number
+  level: PositioningLevelKey
+  levelLabel: string
+  recommendedGroupBase: string
+  sectionScores: SectionScore[]
+  anomalies: string[]
+}
+
+export interface MessageDispatchResult {
+  provider: string
+  status: 'prepared' | 'sent' | 'failed'
+  destination: string
+  deliveryUrl?: string
+  providerMessageId?: string
+  errorMessage?: string
+}
