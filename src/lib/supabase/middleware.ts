@@ -33,7 +33,7 @@ export async function updateSession(request: NextRequest) {
   } = await supabase.auth.getUser()
 
   // Pages publiques (pas besoin d'être connecté)
-  const publicPaths = ['/login', '/register']
+  const publicPaths = ['/login', '/register', '/positioning', '/api/positioning/public', '/api/tts']
   const isPublicPath = publicPaths.some(path =>
     request.nextUrl.pathname.startsWith(path)
   )

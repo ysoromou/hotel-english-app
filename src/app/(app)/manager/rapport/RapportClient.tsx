@@ -70,19 +70,20 @@ interface RapportClientProps {
   evaluations: EvalRow[]
   appProgress: AppProgress[]
   sessions: SessionRow[]
+  hiddenTestAccountsCount: number
 }
 
 const METIER_LABELS: Record<string, string> = {
-  RECEPTION: 'Reception',
+  RECEPTION: 'Réception',
   HOUSEKEEPING: 'Housekeeping',
   RESTAURANT: 'Restaurant',
-  SECURITY: 'Securite',
+  SECURITY: 'Sécurité',
 }
 
 const STATUS_LABELS = {
-  vert: 'Operationnel',
-  orange: 'Intermediaire',
-  rouge: 'A risque',
+  vert: 'Opérationnel',
+  orange: 'Intermédiaire',
+  rouge: 'À risque',
 } as const
 
 const STATUS_COLORS = {
@@ -123,12 +124,12 @@ function getStatus(score: number): StatusKey {
   return 'rouge'
 }
 
-function formatEmptyValue(value: string | null | undefined, fallback = 'Donnee non disponible') {
+function formatEmptyValue(value: string | null | undefined, fallback = 'Non renseigné') {
   return value && value.trim().length > 0 ? value : fallback
 }
 
 function formatScore(score: number | null) {
-  return score !== null ? `${score}/45` : 'Non evalue'
+  return score !== null ? `${score}/45` : 'Non évalué'
 }
 
 function formatSessions(count: number) {
@@ -137,14 +138,14 @@ function formatSessions(count: number) {
 
 function buildLearnerComment(afterScore: number, delta: number | null, sessionCount: number) {
   const status = getStatus(afterScore)
-  if (status === 'vert' && delta !== null && delta > 0) return 'Progression confirmee. Niveau operationnel.'
-  if (status === 'vert') return 'Niveau operationnel.'
-  if (status === 'orange' && sessionCount === 0) return "Renforcement a engager. Aucun usage app constate."
-  if (status === 'orange' && delta !== null && delta > 0) return 'En progression. Renforcement a poursuivre.'
-  if (status === 'orange') return 'Niveau intermediaire. Renforcement cible recommande.'
+  if (status === 'vert' && delta !== null && delta > 0) return 'Progression confirmée. Niveau opérationnel.'
+  if (status === 'vert') return 'Niveau opérationnel.'
+  if (status === 'orange' && sessionCount === 0) return "Renforcement à engager. Aucun usage app constaté."
+  if (status === 'orange' && delta !== null && delta > 0) return 'En progression. Renforcement à poursuivre.'
+  if (status === 'orange') return 'Niveau intermédiaire. Renforcement ciblé recommandé.'
   if (sessionCount === 0) return 'Aucune session app. Accompagnement prioritaire.'
   if (delta !== null && delta > 0) return 'Progression visible mais encore insuffisante.'
-  return 'Sous le seuil operationnel. Suivi individuel recommande.'
+  return 'Sous le seuil opérationnel. Suivi individuel recommandé.'
 }
 
 export default function RapportClient({
@@ -152,6 +153,7 @@ export default function RapportClient({
   evaluations,
   appProgress,
   sessions,
+  hiddenTestAccountsCount,
 }: RapportClientProps) {
   const evalMap = new Map<string, { avant: EvalRow | null; apres: EvalRow | null }>()
   for (const evaluation of evaluations) {
@@ -285,10 +287,10 @@ export default function RapportClient({
       .filter((row) => getStatus(row.score) === 'rouge')
       .sort((a, b) => a.score - b.score)[0] || null
 
-  const promotion = evaluations.find((evaluation) => evaluation.promotion)?.promotion || 'En attente'
+  const promotion = evaluations.find((evaluation) => evaluation.promotion)?.promotion || 'À confirmer'
   const hotels =
     Array.from(new Set(learners.map((learner) => learner.etablissement).filter(Boolean))).join(', ') ||
-    'Donnee non disponible'
+    'Établissement non renseigné'
   const reportDate = new Date().toLocaleDateString('fr-FR', {
     day: 'numeric',
     month: 'long',
@@ -303,14 +305,14 @@ export default function RapportClient({
       : null
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-50 lg:-mb-20">
       <div className="print:hidden sticky top-0 z-10 border-b border-gray-200 bg-white/95 backdrop-blur">
         <div className="mx-auto flex max-w-5xl items-center justify-between gap-3 px-4 py-3">
           <a
             href="/manager"
             className="rounded-full border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:border-gray-300"
           >
-            Retour au tableau de bord
+            Retour au pilotage RH
           </a>
           <button
             onClick={() => window.print()}
@@ -321,8 +323,8 @@ export default function RapportClient({
         </div>
       </div>
 
-      <div className="mx-auto max-w-5xl px-4 py-6">
-        <section className="rounded-[28px] border border-gray-200 bg-white p-6 shadow-sm">
+      <div className="mx-auto max-w-5xl px-4 py-5">
+        <section className="rounded-[28px] border border-gray-200 bg-white p-5 shadow-sm">
           <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
             <div className="flex items-start gap-4">
               <img
@@ -334,10 +336,15 @@ export default function RapportClient({
                 <p className="text-sm font-semibold uppercase tracking-[0.18em] text-blue-600">
                   Rapport client
                 </p>
-                <h1 className="mt-1 text-3xl font-bold text-gray-900">Resultats de la formation</h1>
+                <h1 className="mt-1 text-3xl font-bold text-gray-900">Résultats de la formation</h1>
                 <p className="mt-2 text-sm text-gray-600">
-                  Anglais professionnel hotelier - synthese exploitable pour le pilote NOOM / SEEN.
+                  Anglais professionnel hôtelier - synthèse exploitable pour le pilote NOOM / SEEN.
                 </p>
+                {hiddenTestAccountsCount > 0 ? (
+                  <p className="mt-3 inline-flex rounded-full bg-amber-50 px-3 py-1 text-xs font-medium text-amber-700 ring-1 ring-amber-200">
+                    {hiddenTestAccountsCount} compte(s) de test interne exclus du document client.
+                  </p>
+                ) : null}
               </div>
             </div>
             <div className="rounded-2xl bg-gray-50 p-4 text-sm text-gray-600 ring-1 ring-gray-100">
@@ -353,18 +360,18 @@ export default function RapportClient({
             </div>
           </div>
 
-          <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-            <MetricCard
-              label="Score initial moyen"
-              value={averageBefore !== null ? `${averageBefore}/45` : 'Non evalue'}
-              hint={averageBefore !== null ? `${getPercent(averageBefore)}% du score max` : 'En attente'}
-            />
-            <MetricCard
-              label="Score final moyen"
-              value={averageAfter !== null ? `${averageAfter}/45` : 'Non evalue'}
-              hint={averageAfter !== null ? `${getPercent(averageAfter)}% du score max` : 'En attente'}
-              tone={averageAfter !== null && averageAfter >= SEUIL_VERT ? 'green' : 'neutral'}
-            />
+        <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+          <MetricCard
+            label="Score initial moyen"
+            value={averageBefore !== null ? `${averageBefore}/45` : 'Non évalué'}
+            hint={averageBefore !== null ? `${getPercent(averageBefore)}% du score max` : 'En attente'}
+          />
+          <MetricCard
+            label="Score final moyen"
+            value={averageAfter !== null ? `${averageAfter}/45` : 'Non évalué'}
+            hint={averageAfter !== null ? `${getPercent(averageAfter)}% du score max` : 'En attente'}
+            tone={averageAfter !== null && averageAfter >= SEUIL_VERT ? 'green' : 'neutral'}
+          />
             <MetricCard
               label="Progression moyenne"
               value={
@@ -378,9 +385,9 @@ export default function RapportClient({
               tone={averageDelta !== null && averageDelta > 0 ? 'blue' : 'neutral'}
             />
             <MetricCard
-              label={`Operationnels >= ${SEUIL_VERT}/45`}
+              label={`Opérationnels >= ${SEUIL_VERT}/45`}
               value={operationalRate !== null ? `${operationalRate}%` : 'En attente'}
-              hint={operationalRate !== null ? `${countGreen} sur ${withFinalEval.length} evalues` : 'En attente'}
+              hint={operationalRate !== null ? `${countGreen} sur ${withFinalEval.length} évalués` : 'En attente'}
               tone={operationalRate !== null && operationalRate >= 50 ? 'green' : 'neutral'}
             />
           </div>
@@ -388,7 +395,7 @@ export default function RapportClient({
           <div className="mt-4 grid gap-3 lg:grid-cols-[1.6fr_1fr]">
             <div className="rounded-2xl bg-gray-50 p-4 ring-1 ring-gray-100">
               <p className="text-xs font-semibold uppercase tracking-wide text-gray-400">
-                Repartition des statuts
+                Répartition des statuts
               </p>
               {withFinalEval.length > 0 ? (
                 <div className="mt-3 grid gap-3 sm:grid-cols-3">
@@ -397,7 +404,7 @@ export default function RapportClient({
                   <StatusCard status="rouge" value={countRed} range={`< ${SEUIL_ORANGE}/45`} />
                 </div>
               ) : (
-                <EmptyInline label="Aucun resultat final disponible a ce stade." />
+                <EmptyInline label="Aucun résultat final disponible à ce stade." />
               )}
             </div>
 
@@ -406,23 +413,23 @@ export default function RapportClient({
                 Cadre du rapport
               </p>
               <div className="mt-3 space-y-2 text-sm text-gray-600">
-                <SummaryLine label="Etablissement(s)" value={hotels} />
+                <SummaryLine label="Établissement(s)" value={hotels} />
                 <SummaryLine label="Sessions app" value={String(totalSessions)} />
                 <SummaryLine
                   label="Score app moyen"
-                  value={averageAppScore !== null ? `${averageAppScore}%` : 'Donnee non disponible'}
+                  value={averageAppScore !== null ? `${averageAppScore}%` : 'Aucune session'}
                 />
               </div>
             </div>
           </div>
         </section>
 
-        <section className="mt-5 rounded-[28px] border border-gray-200 bg-white p-6 shadow-sm">
-          <SectionTitle index="1" title="Synthese executive" />
+        <section className="mt-4 rounded-[28px] border border-gray-200 bg-white p-5 shadow-sm">
+          <SectionTitle index="1" title="Synthèse exécutive" />
           {withFinalEval.length === 0 ? (
             <EmptyPanel
-              title="Resultats en attente"
-              description="Les evaluations finales ne sont pas encore disponibles. La synthese executive sera alimentee automatiquement des que les scores seront renseignes."
+              title="Résultats en attente"
+              description="Les évaluations finales ne sont pas encore disponibles. La synthèse exécutive sera alimentée automatiquement dès que les scores seront renseignés."
             />
           ) : (
             <div className="space-y-4">
@@ -430,7 +437,7 @@ export default function RapportClient({
                 <p>
                   {averageBefore !== null && averageAfter !== null ? (
                     <>
-                      Le groupe passe de <strong>{averageBefore}/45</strong> a{' '}
+                      Le groupe passe de <strong>{averageBefore}/45</strong> à{' '}
                       <strong>{averageAfter}/45</strong>. La progression moyenne est de{' '}
                       <strong>
                         {averageDelta !== null ? `${averageDelta >= 0 ? '+' : ''}${averageDelta} pts` : '0 pt'}
@@ -440,25 +447,25 @@ export default function RapportClient({
                         : '. '}
                     </>
                   ) : (
-                    'Les evaluations finales sont disponibles mais la comparaison complete reste en attente. '
+                    'Les évaluations finales sont disponibles mais la comparaison complète reste en attente. '
                   )}
                   <span style={{ color: countGreen > 0 ? '#86efac' : '#e5e7eb' }}>
-                    {operationalRate !== null ? `${operationalRate}% du groupe est operationnel` : 'Lecture operationnelle en attente'}
+                    {operationalRate !== null ? `${operationalRate}% du groupe est opérationnel` : 'Lecture opérationnelle en attente'}
                   </span>
-                  {countOrange > 0 ? `, ${countOrange} profil(s) est/sont a consolider` : ''}
+                  {countOrange > 0 ? `, ${countOrange} profil(s) est/sont à consolider` : ''}
                   {countRed > 0 ? `, ${countRed} profil(s) reste(nt) sous le seuil.` : '.'}
                 </p>
                 <p className="mt-2 text-xs text-gray-300">
                   {heterogeneous
-                    ? 'Progressions heterogenes : ecart sensible entre les meilleurs resultats et les profils les plus faibles.'
-                    : 'Progressions homogenes : le groupe evolue de facon relativement cohérente.'}
+                    ? 'Progressions hétérogènes : écart sensible entre les meilleurs résultats et les profils les plus faibles.'
+                    : 'Progressions homogènes : le groupe évolue de façon relativement cohérente.'}
                 </p>
               </div>
 
               <div className="grid gap-3 md:grid-cols-3">
                 <NarrativeCard
                   tone="green"
-                  title="Impact immediat"
+                  title="Impact immédiat"
                   text={`${countGreen} collaborateur(s) sont exploitables en situation client.`}
                 />
                 <NarrativeCard
@@ -466,8 +473,8 @@ export default function RapportClient({
                   title="Consolidation"
                   text={
                     countOrange > 0
-                      ? `${countOrange} profil(s) necessitent un renforcement cible pour atteindre le seuil.`
-                      : 'Aucun profil intermediaire a consolider.'
+                      ? `${countOrange} profil(s) nécessitent un renforcement ciblé pour atteindre le seuil.`
+                      : 'Aucun profil intermédiaire à consolider.'
                   }
                 />
                 <NarrativeCard
@@ -475,8 +482,8 @@ export default function RapportClient({
                   title="Risque terrain"
                   text={
                     countRed > 0
-                      ? `${countRed} profil(s) restent sous le seuil operationnel et demandent un suivi prioritaire.`
-                      : 'Aucun profil critique identifie.'
+                      ? `${countRed} profil(s) restent sous le seuil opérationnel et demandent un suivi prioritaire.`
+                      : 'Aucun profil critique identifié.'
                   }
                 />
               </div>
@@ -484,12 +491,12 @@ export default function RapportClient({
           )}
         </section>
 
-        <section className="mt-5 rounded-[28px] border border-gray-200 bg-white p-6 shadow-sm">
+        <section className="mt-4 rounded-[28px] border border-gray-200 bg-white p-5 shadow-sm">
           <SectionTitle index="2" title="Usage de l'application" />
           <div className="grid gap-3 md:grid-cols-3">
             <MetricCard label="Sessions totales" value={String(totalSessions)} hint="learning_sessions" />
             <MetricCard
-              label="Taux d'activite"
+              label="Taux d’activité"
               value={`${activityRate}%`}
               hint={`${activeLearners}/${learners.length} actif(s)`}
             />
@@ -507,10 +514,10 @@ export default function RapportClient({
               </p>
               <p className="mt-3 text-sm text-gray-700">
                 {appUsageLooksDeterminant
-                  ? `Les apprenants operationnels realisent en moyenne ${averageGreenSessions} sessions, contre ${averageRedSessions} pour les profils a risque. L'engagement app semble contribuer au resultat.`
+                  ? `Les apprenants opérationnels réalisent en moyenne ${averageGreenSessions} sessions, contre ${averageRedSessions} pour les profils à risque. L’engagement app semble contribuer au résultat.`
                   : totalSessions === 0
-                    ? "Aucune session app n'a ete enregistree sur ce groupe."
-                    : "L'usage app est observable, mais l'ecart entre les groupes reste trop faible pour conclure a un effet net."}
+                    ? "Aucune session app n'a été enregistrée sur ce groupe."
+                    : "L’usage app est observable, mais l’écart entre les groupes reste trop faible pour conclure à un effet net."}
               </p>
             </div>
 
@@ -521,35 +528,35 @@ export default function RapportClient({
               {(averageGreenSessions !== null || averageRedSessions !== null) ? (
                 <div className="mt-3 space-y-3 text-sm">
                   <SummaryLine
-                    label="Operationnels"
+                    label="Opérationnels"
                     value={
                       averageGreenSessions !== null
                         ? `moy. ${averageGreenSessions} sessions`
-                        : 'Donnee non disponible'
+                        : 'Aucune donnée'
                     }
                   />
                   <SummaryLine
-                    label="Profils a risque"
+                    label="Profils à risque"
                     value={
                       averageRedSessions !== null
                         ? `moy. ${averageRedSessions} sessions`
-                        : 'Donnee non disponible'
+                        : 'Aucune donnée'
                     }
                   />
                 </div>
               ) : (
-                <EmptyInline label="Donnee non disponible" />
+                <EmptyInline label="Aucun comparatif disponible" />
               )}
             </div>
           </div>
         </section>
 
-        <section className="mt-5 rounded-[28px] border border-gray-200 bg-white p-6 shadow-sm">
-          <SectionTitle index="3" title="Resultats par apprenant" />
+        <section className="mt-4 rounded-[28px] border border-gray-200 bg-white p-5 shadow-sm">
+          <SectionTitle index="3" title="Résultats par apprenant" />
           {learners.length === 0 ? (
             <EmptyPanel
               title="Aucun apprenant"
-              description="Le rapport ne peut pas etre genere sans apprenants rattaches a cette promotion."
+              description="Le rapport ne peut pas être généré sans apprenants rattachés à cette promotion."
             />
           ) : (
             <>
@@ -558,9 +565,9 @@ export default function RapportClient({
                   <thead>
                     <tr className="border-b-2 border-gray-200 text-left text-xs uppercase tracking-wide text-gray-500">
                       <th className="px-3 py-3">Apprenant</th>
-                      <th className="px-3 py-3">Metier</th>
+                      <th className="px-3 py-3">Métier</th>
                       <th className="px-3 py-3 text-center">Avant</th>
-                      <th className="px-3 py-3 text-center">Apres</th>
+                      <th className="px-3 py-3 text-center">Après</th>
                       <th className="px-3 py-3 text-center">Progression</th>
                       <th className="px-3 py-3 text-center">Usage app</th>
                       <th className="px-3 py-3">Lecture</th>
@@ -580,7 +587,7 @@ export default function RapportClient({
                       const status = afterScore !== null ? getStatus(afterScore) : null
                       const sessionCount = sessionMap.get(learner.id) || 0
                       const comment =
-                        afterScore !== null ? buildLearnerComment(afterScore, delta, sessionCount) : 'Non evalue'
+                        afterScore !== null ? buildLearnerComment(afterScore, delta, sessionCount) : 'Non évalué'
 
                       return (
                         <tr key={learner.id} className="border-b border-gray-100 align-top">
@@ -633,7 +640,7 @@ export default function RapportClient({
                                 <p className="mt-2 text-xs leading-relaxed text-gray-500">{comment}</p>
                               </>
                             ) : (
-                              <p className="text-sm text-gray-500">Non evalue</p>
+                              <p className="text-sm text-gray-500">Évaluation en attente</p>
                             )}
                           </td>
                         </tr>
@@ -644,18 +651,18 @@ export default function RapportClient({
               </div>
 
               <p className="mt-3 text-xs text-gray-400">
-                Score sur 45 points. Seuil operationnel : {SEUIL_VERT}/45.
+                Score sur 45 points. Seuil opérationnel : {SEUIL_VERT}/45.
               </p>
             </>
           )}
         </section>
 
-        <section className="mt-5 rounded-[28px] border border-gray-200 bg-white p-6 shadow-sm">
-          <SectionTitle index="4" title="Lecture pedagogique" />
+        <section className="mt-4 rounded-[28px] border border-gray-200 bg-white p-5 shadow-sm">
+          <SectionTitle index="4" title="Lecture pédagogique" />
           {withFinalEval.length === 0 || competenceAverages.length === 0 ? (
             <EmptyPanel
-              title="Lecture pedagogique en attente"
-              description="Les competences seront consolidees des qu'un volume suffisant d'evaluations finales sera disponible."
+              title="Lecture pédagogique en attente"
+              description="Les compétences seront consolidées dès qu'un volume suffisant d'évaluations finales sera disponible."
             />
           ) : (
             <div className="space-y-4">
@@ -664,13 +671,13 @@ export default function RapportClient({
                   title="Points forts du groupe"
                   items={topThree}
                   tone="green"
-                  emptyLabel="Donnee non disponible"
+                  emptyLabel="Aucun résultat exploitable"
                 />
                 <CompetencePanel
-                  title="Points a renforcer"
+                  title="Points à renforcer"
                   items={bottomThree}
                   tone="red"
-                  emptyLabel="Donnee non disponible"
+                  emptyLabel="Aucun résultat exploitable"
                 />
               </div>
 
@@ -678,22 +685,22 @@ export default function RapportClient({
                 <p className="font-semibold text-amber-800">Lecture client</p>
                 <p className="mt-1">
                   {bottomThree.length > 0
-                    ? `Les competences les plus faibles concernent ${bottomThree
+                    ? `Les compétences les plus faibles concernent ${bottomThree
                         .map((item) => item.label.toLowerCase())
-                        .join(', ')}. Elles doivent etre traitees en priorite avant passage a l'echelle.`
-                    : 'Aucun point faible prioritaire n apparait dans les donnees disponibles.'}
+                        .join(', ')}. Elles doivent être traitées en priorité avant passage à l'échelle.`
+                    : 'Aucun point faible prioritaire n’apparaît dans les données disponibles.'}
                 </p>
               </div>
             </div>
           )}
         </section>
 
-        <section className="mt-5 rounded-[28px] border border-gray-200 bg-white p-6 shadow-sm">
+        <section className="mt-4 rounded-[28px] border border-gray-200 bg-white p-5 shadow-sm">
           <SectionTitle index="5" title="Observations terrain" />
           {evaluations.filter((evaluation) => evaluation.type_evaluation === 'apres' && evaluation.observation_terrain).length === 0 ? (
             <EmptyPanel
               title="Aucune observation terrain"
-              description="Les remarques qualitatives n'ont pas encore ete renseignees."
+              description="Les remarques qualitatives n'ont pas encore été renseignées."
             />
           ) : (
             <div className="space-y-3">
@@ -708,7 +715,7 @@ export default function RapportClient({
                       <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                         <div>
                           <p className="font-semibold text-gray-900">
-                            {learner?.nom_complet || learner?.email || 'Donnee non disponible'}
+                            {learner?.nom_complet || learner?.email || 'Participant non identifié'}
                           </p>
                           <p className="mt-1 text-xs text-gray-500">
                             {formatEmptyValue(learner?.etablissement || null)}
@@ -734,12 +741,12 @@ export default function RapportClient({
           )}
         </section>
 
-        <section className="mt-5 rounded-[28px] border border-gray-200 bg-white p-6 shadow-sm">
+        <section className="mt-4 rounded-[28px] border border-gray-200 bg-white p-5 shadow-sm">
           <SectionTitle index="6" title="Faits marquants" />
           {!(bestProgression || riskProfile) ? (
             <EmptyPanel
               title="Aucun fait marquant"
-              description="Les donnees disponibles ne permettent pas encore de faire ressortir de profils singuliers."
+              description="Les données disponibles ne permettent pas encore de faire ressortir de profils singuliers."
             />
           ) : (
             <div className="space-y-3">
@@ -754,7 +761,7 @@ export default function RapportClient({
                 <NarrativeCard
                   tone="amber"
                   title="Progression la plus faible"
-                  text={`${lowestProgression.learner.nom_complet || lowestProgression.learner.email} : resultat final ${lowestProgression.after}/45.`}
+                  text={`${lowestProgression.learner.nom_complet || lowestProgression.learner.email} : résultat final ${lowestProgression.after}/45.`}
                 />
               ) : null}
               {riskProfile ? (
@@ -768,7 +775,7 @@ export default function RapportClient({
           )}
         </section>
 
-        <section className="mt-5 rounded-[28px] border border-gray-200 bg-white p-6 shadow-sm">
+        <section className="mt-4 rounded-[28px] border border-gray-200 bg-white p-5 shadow-sm">
           <SectionTitle index="7" title="Recommandations" />
           <RecommendationsPanel
             operationalRate={operationalRate}
@@ -782,10 +789,10 @@ export default function RapportClient({
           />
         </section>
 
-        <div className="mt-5 rounded-2xl border border-gray-200 bg-white px-5 py-4 text-xs text-gray-500 shadow-sm">
-          <p>Rapport genere le {reportDate} - Hotel English Pro - CAFORMAC.</p>
+        <div className="mt-4 rounded-2xl border border-gray-200 bg-white px-5 py-4 text-xs text-gray-500 shadow-sm">
+          <p>Rapport généré le {reportDate} - Hotel English Pro - CAFORMAC.</p>
           <p className="mt-1">
-            Grille : 15 competences transverses, score /45, seuil operationnel a partir de {SEUIL_VERT}/45.
+            Grille : 15 compétences transverses, score /45, seuil opérationnel à partir de {SEUIL_VERT}/45.
           </p>
         </div>
       </div>
@@ -827,61 +834,61 @@ function RecommendationsPanel({
 
   if (countGreen > 0) {
     maintain.push(
-      `Maintenir le micro-learning pour les ${countGreen} profil(s) deja operationnels.`,
+      `Maintenir le micro-learning pour les ${countGreen} profil(s) déjà opérationnels.`,
     )
   }
   if (averageDeltaPercent !== null && averageDeltaPercent > 0) {
     maintain.push(`La progression moyenne de +${averageDeltaPercent}% valide le format actuel.`)
   }
   if (activityRate >= 70) {
-    maintain.push(`Le taux d'activite app est bon (${activityRate}%).`)
+    maintain.push(`Le taux d'activité app est bon (${activityRate}%).`)
   }
 
   if (countOrange > 0) {
     reinforce.push(
-      `Cibler les ${countOrange} profil(s) intermediaires avec des mises en situation guidees.`,
+      `Cibler les ${countOrange} profil(s) intermédiaires avec des mises en situation guidées.`,
     )
   }
   if (bottomThree.length > 0) {
     reinforce.push(
-      `Renforcer en priorite : ${bottomThree
+      `Renforcer en priorité : ${bottomThree
         .slice(0, 2)
         .map((item) => item.label.toLowerCase())
         .join(' et ')}.`,
     )
   }
   if (appUsageLooksDeterminant) {
-    reinforce.push("Augmenter l'usage app chez les profils non operationnels.")
+    reinforce.push("Augmenter l'usage app chez les profils non opérationnels.")
   }
 
   if (countRed > 0) {
     correct.push(
-      `${countRed} profil(s) restent sous ${SEUIL_ORANGE}/45 : suivi individuel recommande avant autonomie terrain.`,
+      `${countRed} profil(s) restent sous ${SEUIL_ORANGE}/45 : suivi individuel recommandé avant autonomie terrain.`,
     )
   }
   if (activityRate < 30) {
-    correct.push(`Le taux d'activite app est faible (${activityRate}%). Identifier les freins d'acces.`)
+    correct.push(`Le taux d'activité app est faible (${activityRate}%). Identifier les freins d'accès.`)
   }
 
-  let nextStep = "Completer les evaluations finales pour consolider la recommandation."
+  let nextStep = "Compléter les évaluations finales pour consolider la recommandation."
   if (operationalRate !== null && operationalRate >= 70) {
     nextStep =
-      "Le groupe est largement exploitable. Recommandation : maintien regulier et bilan de consolidation a 3 mois."
+      "Le groupe est largement exploitable. Recommandation : maintien régulier et bilan de consolidation à 3 mois."
   } else if (operationalRate !== null && operationalRate >= 50) {
     nextStep =
-      'Une phase courte de renforcement cible sur 4 semaines peut faire basculer les profils intermediaires.'
+      'Une phase courte de renforcement ciblé sur 4 semaines peut faire basculer les profils intermédiaires.'
   } else if (operationalRate !== null) {
     nextStep =
-      "Le groupe n'est pas encore suffisamment robuste pour un deploiement autonome. Un renforcement prioritaire est necessaire."
+      "Le groupe n'est pas encore suffisamment robuste pour un déploiement autonome. Un renforcement prioritaire est nécessaire."
   }
 
   return (
     <div className="space-y-3">
-      {maintain.length > 0 ? <RecoBlock title="A maintenir" items={maintain} tone="green" /> : null}
-      {reinforce.length > 0 ? <RecoBlock title="A renforcer" items={reinforce} tone="amber" /> : null}
-      {correct.length > 0 ? <RecoBlock title="A corriger en priorite" items={correct} tone="red" /> : null}
+      {maintain.length > 0 ? <RecoBlock title="À maintenir" items={maintain} tone="green" /> : null}
+      {reinforce.length > 0 ? <RecoBlock title="À renforcer" items={reinforce} tone="amber" /> : null}
+      {correct.length > 0 ? <RecoBlock title="À corriger en priorité" items={correct} tone="red" /> : null}
       <div className="rounded-2xl bg-gray-900 px-5 py-4 text-sm text-gray-100">
-        <p className="text-xs font-semibold uppercase tracking-wide text-gray-400">Prochaine etape</p>
+        <p className="text-xs font-semibold uppercase tracking-wide text-gray-400">Prochaine étape</p>
         <p className="mt-2 leading-relaxed">{nextStep}</p>
       </div>
     </div>
@@ -918,8 +925,8 @@ function MetricCard({
         : 'border-gray-200 bg-gray-50'
 
   return (
-    <div className={`rounded-2xl border p-4 ${toneClass}`}>
-      <p className="text-2xl font-bold text-gray-900">{value}</p>
+    <div className={`rounded-2xl border p-3.5 ${toneClass}`}>
+      <p className="text-xl font-bold text-gray-900">{value}</p>
       <p className="mt-1 text-sm font-medium text-gray-600">{label}</p>
       {hint ? <p className="mt-1 text-xs text-gray-500">{hint}</p> : null}
     </div>

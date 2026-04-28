@@ -1,5 +1,6 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
+import { splitVisibleLearners } from '@/lib/test-accounts'
 import RapportClient from './RapportClient'
 
 // Page server — charge toutes les données pour le rapport client
@@ -41,12 +42,16 @@ export default async function RapportPage() {
     .from('learning_sessions')
     .select('user_id')
 
+  const { visibleLearners, hiddenTestAccountsCount } = splitVisibleLearners(learners || [])
+  const visibleIds = new Set(visibleLearners.map((learner) => learner.id))
+
   return (
     <RapportClient
-      learners={learners || []}
-      evaluations={evaluations || []}
-      appProgress={appProgress || []}
-      sessions={sessions || []}
+      learners={visibleLearners}
+      evaluations={(evaluations || []).filter((evaluation) => visibleIds.has(evaluation.learner_id))}
+      appProgress={(appProgress || []).filter((progress) => visibleIds.has(progress.user_id))}
+      sessions={(sessions || []).filter((session) => visibleIds.has(session.user_id))}
+      hiddenTestAccountsCount={hiddenTestAccountsCount}
     />
   )
 }

@@ -1,5 +1,6 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
+import { splitVisibleLearners } from '@/lib/test-accounts'
 import ManagerClient from './ManagerClient'
 
 // Page server — Dashboard manager pour HR/admin
@@ -44,12 +45,18 @@ export default async function ManagerPage() {
     .from('learning_sessions')
     .select('user_id')
 
+  const { visibleLearners, hiddenTestAccountsCount } = splitVisibleLearners(learners || [])
+  const visibleIds = new Set(visibleLearners.map((learner) => learner.id))
+
   return (
     <ManagerClient
-      learners={learners || []}
-      allProgress={allProgress || []}
-      allEvaluations={allEvaluations || []}
-      sessionCounts={sessionCounts || []}
+      learners={visibleLearners}
+      allProgress={(allProgress || []).filter((progress) => visibleIds.has(progress.user_id))}
+      allEvaluations={(allEvaluations || []).filter((evaluation) =>
+        visibleIds.has(evaluation.learner_id),
+      )}
+      sessionCounts={(sessionCounts || []).filter((session) => visibleIds.has(session.user_id))}
+      hiddenTestAccountsCount={hiddenTestAccountsCount}
     />
   )
 }

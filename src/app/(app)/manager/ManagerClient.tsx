@@ -76,22 +76,23 @@ interface ManagerClientProps {
   allProgress: AppProgress[]
   allEvaluations: EvalRow[]
   sessionCounts: SessionCount[]
+  hiddenTestAccountsCount: number
 }
 
 const METIER_LABELS: Record<string, string> = {
-  RECEPTION: 'Reception',
+  RECEPTION: 'Réception',
   HOUSEKEEPING: 'Housekeeping',
   RESTAURANT: 'Restaurant',
-  SECURITY: 'Securite',
+  SECURITY: 'Sécurité',
 }
 
 type StatutKey = 'vert' | 'orange' | 'rouge' | 'nd'
 
 const STATUT_LABELS: Record<StatutKey, string> = {
-  vert: 'Operationnel',
-  orange: 'Intermediaire',
-  rouge: 'A risque',
-  nd: 'Non evalue',
+  vert: 'Opérationnel',
+  orange: 'Intermédiaire',
+  rouge: 'À risque',
+  nd: 'Non évalué',
 }
 
 const STATUT_CLASSES: Record<StatutKey, string> = {
@@ -117,16 +118,16 @@ function getProgressionPercent(before: number, after: number) {
 }
 
 function formatMetier(value: string | null) {
-  if (!value) return 'Donnee non disponible'
+  if (!value) return 'Métier non renseigné'
   return METIER_LABELS[value] || value
 }
 
 function formatHotel(value: string | null) {
-  return value || 'Donnee non disponible'
+  return value || 'Hôtel non renseigné'
 }
 
 function formatAppScore(progress: AppProgress | null) {
-  return progress?.overall_score != null ? `${progress.overall_score}%` : 'Donnee non disponible'
+  return progress?.overall_score != null ? `${progress.overall_score}%` : 'Aucune session'
 }
 
 function formatLastActivity(value: string | null) {
@@ -139,7 +140,7 @@ function formatSessions(count: number) {
 }
 
 function formatScoreValue(score: number | null, suffix = '/45') {
-  return score !== null ? `${score}${suffix}` : 'Non evalue'
+  return score !== null ? `${score}${suffix}` : 'Non évalué'
 }
 
 function getCompletionRate(total: number, completed: number) {
@@ -152,6 +153,7 @@ export default function ManagerClient({
   allProgress,
   allEvaluations,
   sessionCounts,
+  hiddenTestAccountsCount,
 }: ManagerClientProps) {
   const router = useRouter()
   const [search, setSearch] = useState('')
@@ -242,29 +244,34 @@ export default function ManagerClient({
   }
 
   return (
-    <div className="mx-auto max-w-6xl px-4 py-6">
+    <div className="mx-auto max-w-6xl px-4 py-5 lg:-mb-20">
       <section className="rounded-3xl border border-gray-200 bg-white p-5 shadow-sm">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <div className="max-w-3xl">
             <p className="text-sm font-semibold uppercase tracking-[0.18em] text-blue-600">Pilotage RH</p>
-            <h1 className="mt-1 text-2xl font-bold text-gray-900">Suivi des apprenants et des evaluations</h1>
+            <h1 className="mt-1 text-2xl font-bold text-gray-900">Suivi des apprenants et des évaluations</h1>
             <p className="mt-2 text-sm text-gray-600">
-              Vue terrain pour suivre les evaluations, l'usage de l'application et les profils a
+              Vue terrain pour suivre les évaluations, l’usage de l’application et les profils à
               renforcer avant le pilote.
             </p>
+            {hiddenTestAccountsCount > 0 ? (
+              <p className="mt-3 inline-flex rounded-full bg-amber-50 px-3 py-1 text-xs font-medium text-amber-700 ring-1 ring-amber-200">
+                {hiddenTestAccountsCount} compte(s) de test masqué(s) de cette vue.
+              </p>
+            ) : null}
           </div>
           <div className="flex flex-wrap gap-2">
             <button
               onClick={() => router.push('/manager/positioning')}
               className="rounded-full bg-emerald-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-emerald-700"
             >
-              Ouvrir positioning
+              Test de positionnement
             </button>
             <button
               onClick={() => router.push('/manager/rapport')}
               className="rounded-full border border-blue-200 bg-blue-50 px-4 py-2 text-sm font-semibold text-blue-700 hover:border-blue-300"
             >
-              Ouvrir le rapport client
+              Rapport client
             </button>
           </div>
         </div>
@@ -272,13 +279,13 @@ export default function ManagerClient({
         <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
           <KpiCard
             label="Score initial moyen"
-            value={averageBefore !== null ? `${averageBefore}/45` : 'Non evalue'}
-            hint={`${withInitialEval} evaluation(s) initiale(s)`}
+            value={averageBefore !== null ? `${averageBefore}/45` : 'Non évalué'}
+            hint={`${withInitialEval} évaluation(s) initiale(s)`}
           />
           <KpiCard
             label="Score final moyen"
-            value={averageAfter !== null ? `${averageAfter}/45` : 'Non evalue'}
-            hint={`${withFinalEval} evaluation(s) finale(s)`}
+            value={averageAfter !== null ? `${averageAfter}/45` : 'Non évalué'}
+            hint={`${withFinalEval} évaluation(s) finale(s)`}
             tone={averageAfter !== null && averageAfter >= SEUIL_VERT ? 'green' : 'neutral'}
           />
           <KpiCard
@@ -288,13 +295,13 @@ export default function ManagerClient({
                 ? `${averageProgression >= 0 ? '+' : ''}${averageProgression}%`
                 : 'En attente'
             }
-            hint={`${withBothEvals.length} apprenant(s) avec deux evaluations`}
+            hint={`${withBothEvals.length} apprenant(s) avec deux évaluations`}
             tone={averageProgression !== null && averageProgression > 0 ? 'blue' : 'neutral'}
           />
           <KpiCard
-            label="Taux operationnel"
+            label="Taux opérationnel"
             value={operationalRate !== null ? `${operationalRate}%` : 'En attente'}
-            hint="Base : evaluations finales"
+            hint="Base : évaluations finales"
             tone={operationalRate !== null && operationalRate >= 50 ? 'green' : 'neutral'}
           />
         </div>
@@ -305,19 +312,14 @@ export default function ManagerClient({
               Lecture rapide
             </p>
             <div className="mt-3 grid gap-3 sm:grid-cols-3">
+              <StatusOverviewCard label="Opérationnels" value={statusGreen} range={`>= ${SEUIL_VERT}/45`} tone="green" />
               <StatusOverviewCard
-                label="Operationnels"
-                value={statusGreen}
-                range={`>= ${SEUIL_VERT}/45`}
-                tone="green"
-              />
-              <StatusOverviewCard
-                label="Intermediaires"
+                label="Intermédiaires"
                 value={statusOrange}
                 range={`${SEUIL_ORANGE}-${SEUIL_VERT - 1}/45`}
                 tone="amber"
               />
-              <StatusOverviewCard label="A risque" value={statusRed} range={`< ${SEUIL_ORANGE}/45`} tone="red" />
+              <StatusOverviewCard label="À risque" value={statusRed} range={`< ${SEUIL_ORANGE}/45`} tone="red" />
             </div>
           </div>
 
@@ -327,8 +329,8 @@ export default function ManagerClient({
             </p>
             <div className="mt-3 space-y-2 text-sm text-gray-600">
               <SummaryLine label="Apprenants" value={String(learners.length)} />
-              <SummaryLine label="Sessions remontees" value={String(sessionCounts.length)} />
-              <SummaryLine label="Taux d'activite" value={`${activityRate}%`} />
+              <SummaryLine label="Sessions remontées" value={String(sessionCounts.length)} />
+              <SummaryLine label="Taux d’activité" value={`${activityRate}%`} />
             </div>
           </div>
         </div>
@@ -340,11 +342,11 @@ export default function ManagerClient({
             <div>
               <h2 className="text-lg font-semibold text-gray-900">Filtrer les apprenants</h2>
               <p className="text-sm text-gray-500">
-                Recherche rapide par nom, email, metier et hotel.
+                Recherche rapide par nom, email, métier et hôtel.
               </p>
             </div>
             <div className="rounded-full bg-gray-50 px-4 py-2 text-sm font-medium text-gray-600 ring-1 ring-gray-200">
-              {filtered.length} resultat(s)
+              {filtered.length} résultat(s)
             </div>
           </div>
 
@@ -362,7 +364,7 @@ export default function ManagerClient({
                 <FilterChip
                   key={metier}
                   active={filterMetier === metier}
-                  label={metier === 'all' ? 'Tous les metiers' : formatMetier(metier)}
+                  label={metier === 'all' ? 'Tous les métiers' : formatMetier(metier)}
                   onClick={() => setFilterMetier(metier)}
                 />
               ))}
@@ -372,7 +374,7 @@ export default function ManagerClient({
               <div className="flex flex-wrap gap-2">
                 <FilterChip
                   active={filterHotel === 'all'}
-                  label="Tous les hotels"
+                  label="Tous les hôtels"
                   tone="gray"
                   onClick={() => setFilterHotel('all')}
                 />
@@ -394,8 +396,8 @@ export default function ManagerClient({
       <section className="mt-5">
         {filtered.length === 0 ? (
           <EmptyStateCard
-            title="Aucun apprenant a afficher"
-            description="Aucun profil ne correspond aux filtres en cours. Ajustez la recherche ou les segments metier/hotel."
+            title="Aucun apprenant à afficher"
+            description="Aucun profil ne correspond aux filtres en cours. Ajustez la recherche ou les segments métier/hôtel."
           />
         ) : (
           <div className="grid gap-3 xl:grid-cols-2">
@@ -415,21 +417,22 @@ export default function ManagerClient({
                 <button
                   key={learner.id}
                   onClick={() => setSelectedId(learner.id)}
-                  className="rounded-3xl border border-gray-200 bg-white p-5 text-left shadow-sm transition hover:border-blue-200 hover:shadow"
+                  className="rounded-3xl border border-gray-200 bg-white p-4 text-left shadow-sm transition hover:border-blue-200 hover:shadow"
                 >
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
                       <p className="truncate text-base font-semibold text-gray-900">
                         {learner.nom_complet || learner.email}
                       </p>
-                      <p className="mt-1 text-sm text-gray-500">
-                        {formatMetier(learner.metier_code)} · {formatHotel(learner.etablissement)}
-                      </p>
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        <MetaPill label={formatMetier(learner.metier_code)} />
+                        <MetaPill label={formatHotel(learner.etablissement)} />
+                      </div>
                     </div>
                     <StatusBadge status={status} />
                   </div>
 
-                  <div className="mt-4 grid gap-3 sm:grid-cols-3">
+                  <div className="mt-4 grid gap-2 sm:grid-cols-4">
                     <MiniStat label="Initial" value={formatScoreValue(scoreBefore)} />
                     <MiniStat label="Final" value={formatScoreValue(scoreAfter)} />
                     <MiniStat
@@ -440,12 +443,13 @@ export default function ManagerClient({
                           : 'En attente'
                       }
                     />
+                    <MiniStat label="Sessions" value={appSessions > 0 ? String(appSessions) : 'Aucune'} />
                   </div>
 
-                  <div className="mt-4 flex flex-wrap gap-2 text-xs text-gray-600">
-                    <InfoPill label={formatSessions(appSessions)} />
-                    <InfoPill label={`Score app : ${formatAppScore(progress)}`} />
-                    <InfoPill label={`Derniere activite : ${formatLastActivity(progress?.last_activity_date || null)}`} />
+                  <div className="mt-3 flex flex-col gap-1 text-xs text-gray-500 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
+                    <span>Usage app : {formatSessions(appSessions)}</span>
+                    <span>Score app : {formatAppScore(progress)}</span>
+                    <span>Dernière activité : {formatLastActivity(progress?.last_activity_date || null)}</span>
                   </div>
                 </button>
               )
@@ -530,7 +534,7 @@ function LearnerDetail({
         onClick={onBack}
         className="mb-4 rounded-full border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:border-gray-300"
       >
-        Retour a la liste
+        Retour à la liste
       </button>
 
       <section className="rounded-3xl border border-gray-200 bg-white p-5 shadow-sm">
@@ -543,7 +547,7 @@ function LearnerDetail({
               {learner.nom_complet || learner.email}
             </h1>
             <p className="mt-2 text-sm text-gray-500">
-              {formatMetier(learner.metier_code)} · {formatHotel(learner.etablissement)}
+              {formatMetier(learner.metier_code)} / {formatHotel(learner.etablissement)}
             </p>
           </div>
           <StatusBadge status={status} />
@@ -570,23 +574,23 @@ function LearnerDetail({
                 onClick={() => openEdit('avant')}
                 className="rounded-full border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50"
               >
-                {evals.avant ? 'Modifier eval. initiale' : 'Ajouter eval. initiale'}
+                {evals.avant ? 'Modifier éval. initiale' : 'Ajouter éval. initiale'}
               </button>
               <button
                 onClick={() => openEdit('apres')}
                 className="rounded-full bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700"
               >
-                {evals.apres ? 'Modifier eval. finale' : 'Ajouter eval. finale'}
+                {evals.apres ? 'Modifier éval. finale' : 'Ajouter éval. finale'}
               </button>
             </div>
 
             {editType && (
               <div className="mt-5 rounded-2xl bg-gray-50 p-4 ring-1 ring-gray-100">
                 <h2 className="text-sm font-semibold text-gray-900">
-                  {editType === 'avant' ? 'Evaluation initiale' : 'Evaluation finale'}
+                  {editType === 'avant' ? 'Évaluation initiale' : 'Évaluation finale'}
                 </h2>
                 <p className="mt-1 text-xs text-gray-500">
-                  Barreme 0 a 3 par competence, total sur 45 points.
+                  Barème 0 à 3 par compétence, total sur 45 points.
                 </p>
 
                 <input
@@ -601,7 +605,7 @@ function LearnerDetail({
                   <LegendPill label="0 Incapable" tone="red" />
                   <LegendPill label="1 Partiel" tone="amber" />
                   <LegendPill label="2 Fonctionnel" tone="blue" />
-                  <LegendPill label="3 Operationnel" tone="green" />
+                  <LegendPill label="3 Opérationnel" tone="green" />
                 </div>
 
                 <div className="mt-4 space-y-4">
@@ -669,7 +673,7 @@ function LearnerDetail({
 
           {(evals.avant || evals.apres) && !editType ? (
             <div className="rounded-3xl border border-gray-200 bg-white p-5 shadow-sm">
-              <h2 className="text-lg font-semibold text-gray-900">Detail des 15 competences</h2>
+              <h2 className="text-lg font-semibold text-gray-900">Détail des 15 compétences</h2>
               <div className="mt-4 space-y-3">
                 {COMPETENCES.map((competence, index) => {
                   const beforeValue = (evals.avant?.[competence.key as keyof EvalRow] as number) ?? null
@@ -683,7 +687,7 @@ function LearnerDetail({
                       </p>
                       <div className="mt-2 flex flex-wrap gap-3 text-xs text-gray-600">
                         <span>Avant : <ScorePill value={beforeValue} /></span>
-                        <span>Apres : <ScorePill value={afterValue} /></span>
+                        <span>Après : <ScorePill value={afterValue} /></span>
                         {beforeValue !== null && afterValue !== null && afterValue > beforeValue && (
                           <span className="font-semibold text-green-600">+{afterValue - beforeValue}</span>
                         )}
@@ -696,8 +700,8 @@ function LearnerDetail({
           ) : (
             !editType && (
               <EmptyStateCard
-                title="Aucune evaluation disponible"
-                description="Ajoutez une evaluation initiale ou finale pour afficher le detail pedagogique."
+                title="Aucune évaluation disponible"
+                description="Ajoutez une évaluation initiale ou finale pour afficher le détail pédagogique."
               />
             )
           )}
@@ -705,22 +709,22 @@ function LearnerDetail({
 
         <aside className="space-y-5">
           <div className="rounded-3xl border border-gray-200 bg-white p-5 shadow-sm">
-            <h2 className="text-lg font-semibold text-gray-900">Synthese terrain</h2>
+            <h2 className="text-lg font-semibold text-gray-900">Synthèse terrain</h2>
             <div className="mt-4 space-y-3 text-sm text-gray-600">
               <DetailLine label="Sessions app" value={formatSessions(sessions)} />
               <DetailLine label="Score app" value={formatAppScore(progress)} />
               <DetailLine
-                label="Derniere activite"
+                label="Dernière activité"
                 value={formatLastActivity(progress?.last_activity_date || null)}
               />
-              <DetailLine label="Hotel" value={formatHotel(learner.etablissement)} />
+              <DetailLine label="Hôtel" value={formatHotel(learner.etablissement)} />
             </div>
           </div>
 
           <div className="rounded-3xl border border-gray-200 bg-white p-5 shadow-sm">
             <h2 className="text-lg font-semibold text-gray-900">Observation terrain</h2>
             <p className="mt-3 text-sm text-gray-600">
-              {evals.apres?.observation_terrain || 'Donnee non disponible'}
+              {evals.apres?.observation_terrain || 'Aucune observation saisie'}
             </p>
           </div>
         </aside>
@@ -748,8 +752,8 @@ function KpiCard({
         : 'border-gray-200 bg-gray-50'
 
   return (
-    <div className={`rounded-2xl border p-4 ${toneClass}`}>
-      <p className="text-2xl font-bold text-gray-900">{value}</p>
+    <div className={`rounded-2xl border p-3.5 ${toneClass}`}>
+      <p className="text-xl font-bold text-gray-900">{value}</p>
       <p className="mt-1 text-sm font-medium text-gray-600">{label}</p>
       {hint ? <p className="mt-1 text-xs text-gray-500">{hint}</p> : null}
     </div>
@@ -832,16 +836,16 @@ function StatusBadge({ status }: { status: StatutKey }) {
 
 function MiniStat({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-2xl bg-gray-50 p-3 ring-1 ring-gray-100">
+    <div className="rounded-2xl bg-gray-50 p-2.5 ring-1 ring-gray-100">
       <p className="text-xs font-semibold uppercase tracking-wide text-gray-400">{label}</p>
       <p className="mt-1 text-sm font-semibold text-gray-900">{value}</p>
     </div>
   )
 }
 
-function InfoPill({ label }: { label: string }) {
+function MetaPill({ label }: { label: string }) {
   return (
-    <span className="rounded-full bg-gray-100 px-3 py-1 font-medium text-gray-600">
+    <span className="rounded-full bg-gray-100 px-2.5 py-1 text-xs font-medium text-gray-600">
       {label}
     </span>
   )
@@ -893,7 +897,7 @@ function EmptyStateCard({ title, description }: { title: string; description: st
 
 function ScorePill({ value }: { value: number | null }) {
   if (value === null) {
-    return <span className="font-medium text-gray-500">Non evalue</span>
+    return <span className="font-medium text-gray-500">Non évalué</span>
   }
 
   const colorMap = [
@@ -902,7 +906,7 @@ function ScorePill({ value }: { value: number | null }) {
     'bg-blue-100 text-blue-700',
     'bg-green-100 text-green-700',
   ]
-  const labelMap = ['Incapable', 'Partiel', 'Fonctionnel', 'Operationnel']
+  const labelMap = ['Incapable', 'Partiel', 'Fonctionnel', 'Opérationnel']
 
   return (
     <span className={`inline-block rounded-full px-2 py-1 font-semibold ${colorMap[value]}`}>
