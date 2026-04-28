@@ -1,0 +1,9 @@
+<svg width="240" height="52" viewBox="0 0 240 52" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="logoTitle logoDesc">
+  <title id="logoTitle">CAFORMAC AFRICONSULT</title>
+  <desc id="logoDesc">Wordmark CAFORMAC AFRICONSULT</desc>
+  <rect x="1" y="5" width="42" height="42" rx="12" fill="#006633"/>
+  <path d="M30.8 16.5C28.8 14.9 26.3 14 23.6 14C17 14 12 18.9 12 25.5C12 32.1 17 37 23.6 37C26.3 37 28.8 36.1 30.8 34.5" stroke="white" stroke-width="4" stroke-linecap="round"/>
+  <circle cx="23" cy="25.5" r="2.5" fill="#C9A227"/>
+  <text x="56" y="24" fill="#111827" font-family="Arial, Helvetica, sans-serif" font-size="20" font-weight="700" letter-spacing="0.4">CAFORMAC</text>
+  <text x="56" y="40" fill="#6B7280" font-family="Arial, Helvetica, sans-serif" font-size="10" font-weight="700" letter-spacing="2.2">AFRICONSULT</text>
+</svg>

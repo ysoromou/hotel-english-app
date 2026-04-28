@@ -2,7 +2,6 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import Image from 'next/image'
 import { createClient } from '@/lib/supabase/client'
 
 interface ProfileClientProps {
@@ -32,12 +31,12 @@ const METIER_OPTIONS = [
       <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09Z"/>
     </svg>
   )},
-  { code: 'REST', label: 'Entretien', icon: (
+  { code: 'REST', label: 'Restaurant', icon: (
     <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
       <path strokeLinecap="round" strokeLinejoin="round" d="M20.25 14.15v4.25c0 1.094-.787 2.036-1.872 2.18-2.087.277-4.216.42-6.378.42s-4.291-.143-6.378-.42c-1.085-.144-1.872-1.086-1.872-2.18v-4.25m16.5 0a2.18 2.18 0 0 0 .75-1.661V8.706c0-1.081-.768-2.015-1.837-2.175a48.114 48.114 0 0 0-3.413-.387m4.5 8.006c-.194.165-.42.295-.673.38A23.978 23.978 0 0 1 12 15.75c-2.648 0-5.195-.429-7.577-1.22a2.016 2.016 0 0 1-.673-.38m0 0A2.18 2.18 0 0 1 3 12.489V8.706c0-1.081.768-2.015 1.837-2.175a48.111 48.111 0 0 1 3.413-.387m7.5 0V5.25A2.25 2.25 0 0 0 13.5 3h-3a2.25 2.25 0 0 0-2.25 2.25v.894m7.5 0a48.667 48.667 0 0 0-7.5 0"/>
     </svg>
   )},
-  { code: 'SEC',  label: 'Art Culinaire', icon: (
+  { code: 'SEC',  label: 'Sécurité', icon: (
     <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
       <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75 11.25 15 15 9.75m-3-7.036A11.959 11.959 0 0 1 3.598 6 11.99 11.99 0 0 0 3 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285Z"/>
     </svg>
@@ -80,45 +79,45 @@ const BADGES = [
 export default function ProfileClient({ profile, email, stats }: ProfileClientProps) {
   const [nomComplet, setNomComplet] = useState(profile?.nom_complet ?? '')
   const [metierCode, setMetierCode] = useState(profile?.metier_code ?? '')
-  const [saving, setSaving]         = useState(false)
-  const [saved, setSaved]           = useState(false)
-  const router   = useRouter()
+  const [saving, setSaving] = useState(false)
+  const [saved, setSaved] = useState(false)
+  const router = useRouter()
   const supabase = createClient()
 
   async function handleSave() {
-    setSaving(true); setSaved(false)
-    await supabase.from('profiles')
+    setSaving(true)
+    setSaved(false)
+    await supabase
+      .from('profiles')
       .update({ nom_complet: nomComplet || null, metier_code: metierCode || null })
       .eq('id', profile?.id)
-    setSaving(false); setSaved(true)
+    setSaving(false)
+    setSaved(true)
     router.refresh()
     setTimeout(() => setSaved(false), 2000)
   }
 
   async function handleSignOut() {
     await supabase.auth.signOut()
-    router.push('/login'); router.refresh()
+    router.push('/login')
+    router.refresh()
   }
 
   const displayName = nomComplet || email.split('@')[0]
   const metierLabel = METIER_OPTIONS.find(m => m.code === metierCode)?.label ?? 'Formation Hôtelière'
-  const lessonPct   = stats.total > 0 ? Math.round((stats.completed / stats.total) * 100) : 0
-  const heures      = Math.floor((stats.completed * 30) / 60)
-  const minutes     = (stats.completed * 30) % 60
+  const lessonPct = stats.total > 0 ? Math.round((stats.completed / stats.total) * 100) : 0
+  const heures = Math.floor((stats.completed * 30) / 60)
+  const minutes = (stats.completed * 30) % 60
 
   return (
     <div className="min-h-screen bg-[#F5F5F5] pb-24">
-
-      {/* ── EN-TÊTE blanc ── */}
-      <div className="bg-white px-5 pt-12 pb-6 flex flex-col items-center"
-           style={{ boxShadow: '0 2px 16px rgba(0,0,0,0.05)' }}>
-
-        {/* Avatar rond — bordure verte */}
-        <div className="relative w-20 h-20 rounded-full overflow-hidden border-[3px] border-[#006633] mb-3">
-          <Image src="/images/avatars/avatar-default.jpg"
-                 alt="Photo de profil" fill className="object-cover"/>
-          <div className="absolute inset-0 flex items-center justify-center
-                          bg-[#006633] text-white text-2xl font-extrabold">
+      <div
+        className="bg-white px-5 pt-12 pb-6 flex flex-col items-center"
+        style={{ boxShadow: '0 2px 16px rgba(0,0,0,0.05)' }}
+      >
+        <div className="relative w-20 h-20 rounded-full overflow-hidden border-[3px] border-[#006633] mb-3 bg-[#006633]">
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.22),transparent_48%)]" />
+          <div className="absolute inset-0 flex items-center justify-center text-white text-2xl font-extrabold">
             {displayName[0]?.toUpperCase()}
           </div>
         </div>
@@ -126,25 +125,26 @@ export default function ProfileClient({ profile, email, stats }: ProfileClientPr
         <h1 className="text-xl font-extrabold text-[#000000]">{displayName}</h1>
         <p className="text-sm text-[#666] mt-0.5">{metierLabel}</p>
 
-        {/* Bouton Modifier — outline pilule */}
-        <button onClick={handleSave} disabled={saving}
-                className="mt-4 px-6 py-2 border border-[#006633] rounded-full text-sm font-semibold text-[#006633] hover:bg-[#006633] hover:text-white transition-colors disabled:opacity-50"
-                style={{ minHeight: '36px' }}>
+        <button
+          onClick={handleSave}
+          disabled={saving}
+          className="mt-4 px-6 py-2 border border-[#006633] rounded-full text-sm font-semibold text-[#006633] hover:bg-[#006633] hover:text-white transition-colors disabled:opacity-50"
+          style={{ minHeight: '36px' }}
+        >
           {saving ? 'Enregistrement…' : saved ? 'Enregistré !' : 'Modifier le Profil'}
         </button>
       </div>
 
       <div className="px-5 pt-5 space-y-5">
-
-        {/* ── MES BADGES ── */}
         <section>
           <h2 className="text-base font-extrabold text-[#000000] mb-3">Mes Badges</h2>
           <div className="flex gap-3">
             {BADGES.map(badge => (
-              <div key={badge.id}
-                   className="flex-1 bg-white rounded-2xl border border-[#E5E7EB] p-3 flex flex-col items-center text-center"
-                   style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
-                {/* Icône carré blanc bordure verte */}
+              <div
+                key={badge.id}
+                className="flex-1 bg-white rounded-2xl border border-[#E5E7EB] p-3 flex flex-col items-center text-center"
+                style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}
+              >
                 <span className="flex items-center justify-center w-12 h-12 rounded-2xl bg-white border border-[#006633] text-[#006633] mb-2">
                   {badge.icon}
                 </span>
@@ -155,12 +155,12 @@ export default function ProfileClient({ profile, email, stats }: ProfileClientPr
           </div>
         </section>
 
-        {/* ── MES PROGRÈS ── */}
         <section>
           <h2 className="text-base font-extrabold text-[#000000] mb-3">Mes Progrès</h2>
-          <div className="bg-white rounded-2xl border border-[#E5E7EB] p-4 space-y-4"
-               style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
-
+          <div
+            className="bg-white rounded-2xl border border-[#E5E7EB] p-4 space-y-4"
+            style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}
+          >
             {[
               { label: 'Leçons Complétées', value: `${stats.completed}/${stats.total}`, pct: lessonPct },
               { label: 'Heures de Formation', value: `${heures}h${minutes > 0 ? ` ${minutes}min` : ''}`, pct: Math.min(lessonPct, 100) },
@@ -171,23 +171,20 @@ export default function ProfileClient({ profile, email, stats }: ProfileClientPr
                   <span className="font-medium text-[#333]">{row.label}</span>
                   <span className="font-bold text-[#000]">{row.value}</span>
                 </div>
-                {/* Barre de progression fine */}
                 <div className="w-full h-1.5 bg-[#E5E7EB] rounded-full overflow-hidden">
-                  <div className="h-full bg-[#4CAF50] rounded-full transition-all"
-                       style={{ width: `${row.pct}%` }}/>
+                  <div className="h-full bg-[#4CAF50] rounded-full transition-all" style={{ width: `${row.pct}%` }}/>
                 </div>
               </div>
             ))}
           </div>
         </section>
 
-        {/* ── INFORMATIONS ── */}
         <section>
           <h2 className="text-base font-extrabold text-[#000000] mb-3">Informations</h2>
-          <div className="bg-white rounded-2xl border border-[#E5E7EB] p-4 space-y-4"
-               style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
-
-            {/* Champ nom */}
+          <div
+            className="bg-white rounded-2xl border border-[#E5E7EB] p-4 space-y-4"
+            style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}
+          >
             <div className="flex items-center gap-3 border border-[#E5E7EB] rounded-2xl px-3 bg-[#F5F5F5] focus-within:border-[#006633] transition-all">
               <span className="flex items-center justify-center w-9 h-9 rounded-xl bg-white border border-[#006633] text-[#006633] shrink-0 my-2">
                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
@@ -195,44 +192,50 @@ export default function ProfileClient({ profile, email, stats }: ProfileClientPr
                 </svg>
               </span>
               <input
-                type="text" value={nomComplet}
+                type="text"
+                value={nomComplet}
                 onChange={e => setNomComplet(e.target.value)}
                 placeholder="Votre nom complet"
                 className="flex-1 py-3 bg-transparent text-[#000] placeholder-[#999] outline-none text-sm"
               />
             </div>
 
-            {/* Sélection métier */}
             <div className="grid grid-cols-2 gap-2">
-              {METIER_OPTIONS.map(m => (
-                <button key={m.code} onClick={() => setMetierCode(m.code)}
-                        className={`flex items-center gap-2 px-3 py-3 rounded-xl border-2 text-sm font-semibold transition-colors ${
-                          metierCode === m.code
-                            ? 'border-[#006633] bg-[#006633]/5 text-[#006633]'
-                            : 'border-[#E5E7EB] bg-white text-[#333]'
-                        }`}>
+              {METIER_OPTIONS.map(option => (
+                <button
+                  key={option.code}
+                  onClick={() => setMetierCode(option.code)}
+                  className={`flex items-center gap-2 px-3 py-3 rounded-xl border-2 text-sm font-semibold transition-colors ${
+                    metierCode === option.code
+                      ? 'border-[#006633] bg-[#006633]/5 text-[#006633]'
+                      : 'border-[#E5E7EB] bg-white text-[#333]'
+                  }`}
+                >
                   <span className={`flex items-center justify-center w-7 h-7 rounded-lg border ${
-                    metierCode === m.code ? 'border-[#006633] text-[#006633]' : 'border-[#E5E7EB] text-[#999]'
+                    metierCode === option.code ? 'border-[#006633] text-[#006633]' : 'border-[#E5E7EB] text-[#999]'
                   } bg-white shrink-0`}>
-                    {m.icon}
+                    {option.icon}
                   </span>
-                  {m.label}
+                  {option.label}
                 </button>
               ))}
             </div>
 
-            {/* Bouton sauvegarder — pilule vert */}
-            <button onClick={handleSave} disabled={saving}
-                    className="w-full py-4 bg-[#006633] hover:bg-[#004d26] text-white font-bold text-base rounded-full transition-colors disabled:opacity-50"
-                    style={{ boxShadow: '0 4px 16px rgba(0,102,51,0.25)' }}>
+            <button
+              onClick={handleSave}
+              disabled={saving}
+              className="w-full py-4 bg-[#006633] hover:bg-[#004d26] text-white font-bold text-base rounded-full transition-colors disabled:opacity-50"
+              style={{ boxShadow: '0 4px 16px rgba(0,102,51,0.25)' }}
+            >
               {saving ? 'Enregistrement…' : saved ? 'Enregistré !' : 'Enregistrer les modifications'}
             </button>
           </div>
         </section>
 
-        {/* Déconnexion */}
-        <button onClick={handleSignOut}
-                className="w-full py-4 border border-[#E5E7EB] text-[#666] font-semibold rounded-full hover:bg-[#F5F5F5] transition-colors text-sm">
+        <button
+          onClick={handleSignOut}
+          className="w-full py-4 border border-[#E5E7EB] text-[#666] font-semibold rounded-full hover:bg-[#F5F5F5] transition-colors text-sm"
+        >
           Se déconnecter
         </button>
       </div>

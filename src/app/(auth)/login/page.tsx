@@ -46,6 +46,7 @@ export default function LoginPage() {
           src="/images/login/login-hero.jpg"
           alt="Réceptionniste hôtelière souriante"
           fill
+          sizes="(max-width: 768px) 100vw, 448px"
           className="object-cover object-top"
           priority
         />
