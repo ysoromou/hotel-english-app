@@ -81,9 +81,20 @@ interface BottomNavProps {
 export default function BottomNav({ showManager = false }: BottomNavProps) {
   const pathname = usePathname()
   const tabs = showManager ? [...BASE_TABS, MANAGER_TAB] : BASE_TABS
+  const isManagerView = pathname.startsWith('/manager')
+  const isManagerReport = pathname === '/manager/rapport'
+  const isTestOnline = pathname.startsWith('/test-online')
+
+  if (isManagerReport || isTestOnline) {
+    return null
+  }
 
   return (
-    <nav className="print:hidden fixed bottom-0 left-0 right-0 z-50 border-t border-gray-200 bg-white shadow-[0_-2px_12px_rgba(0,0,0,0.06)]">
+    <nav
+      className={`print:hidden fixed bottom-0 left-0 right-0 z-50 border-t border-gray-200 bg-white shadow-[0_-2px_12px_rgba(0,0,0,0.06)] ${
+        isManagerView ? 'lg:hidden' : ''
+      }`}
+    >
       <div className="mx-auto flex max-w-md items-center justify-around px-2 pb-[max(env(safe-area-inset-bottom),0.35rem)] pt-1">
         {tabs.map((tab) => {
           const isActive = pathname === tab.href || pathname.startsWith(`${tab.href}/`)

@@ -65,6 +65,12 @@ interface TestStatus {
   human_confirmation_required: boolean
   a_revoir_seance_2?: boolean
   commentaire?: string | null
+  candidate_first_name?: string | null
+  candidate_last_name?: string | null
+  candidate_hotel?: string | null
+  candidate_service?: string | null
+  candidate_phone?: string | null
+  candidate_email?: string | null
 }
 
 interface TestResponse {
@@ -124,7 +130,9 @@ export default function ConsultantClient({
   const [tab, setTab] = useState<TabId>('learners')
   const [search, setSearch] = useState('')
   const [filterMetier, setFilterMetier] = useState('all')
+  const [filterHotel, setFilterHotel] = useState('all')
   const [filterGroup, setFilterGroup] = useState('all')
+  const [filterTestStatus, setFilterTestStatus] = useState('all')
 
   // Maps
   const evalMap = new Map<string, { avant: number | null; apres: number | null }>()
@@ -138,20 +146,33 @@ export default function ConsultantClient({
   const progressMap = new Map(appProgress.map(p => [p.user_id, p]))
   const oralMap = new Map(oralValidations.map(o => [o.learner_id, o]))
   const testMap = new Map(testStatus.map(t => [t.learner_id, t]))
+  const hotels = Array.from(new Set(
+    learners
+      .map((learner) => learner.etablissement || testMap.get(learner.id)?.candidate_hotel || null)
+      .filter(Boolean) as string[],
+  )).sort((a, b) => a.localeCompare(b, 'fr'))
 
   // Filtre apprenants
   const filtered = learners.filter(l => {
-    const matchSearch = !search ||
-      (l.nom_complet || '').toLowerCase().includes(search.toLowerCase()) ||
-      l.email.toLowerCase().includes(search.toLowerCase())
-    const matchMetier = filterMetier === 'all' || l.metier_code === filterMetier
-    
-    // Filtre groupe
     const tStat = testMap.get(l.id)
     const officialLevel = tStat?.niveau_confirme || tStat?.niveau_suggere
+    const query = search.trim().toLowerCase()
+    const matchSearch = !query ||
+      (l.nom_complet || '').toLowerCase().includes(query) ||
+      l.email.toLowerCase().includes(query) ||
+      (l.etablissement || tStat?.candidate_hotel || '').toLowerCase().includes(query) ||
+      (l.metier_code ? (METIER_LABELS[l.metier_code] || l.metier_code) : '').toLowerCase().includes(query) ||
+      (tStat?.statut || '').toLowerCase().includes(query) ||
+      (officialLevel || '').toLowerCase().includes(query) ||
+      String(tStat?.score_global ?? '').includes(query) ||
+      (tStat?.candidate_phone || '').toLowerCase().includes(query) ||
+      (tStat?.candidate_email || '').toLowerCase().includes(query)
+    const matchMetier = filterMetier === 'all' || l.metier_code === filterMetier
+    const matchHotel = filterHotel === 'all' || (l.etablissement || tStat?.candidate_hotel) === filterHotel
     const matchGroup = filterGroup === 'all' || officialLevel === filterGroup
+    const matchStatus = filterTestStatus === 'all' || tStat?.statut === filterTestStatus
 
-    return matchSearch && matchMetier && matchGroup
+    return matchSearch && matchMetier && matchHotel && matchGroup && matchStatus
   })
 
   const GROUP_LABELS: Record<string, string> = {
@@ -199,19 +220,55 @@ export default function ConsultantClient({
             </button>
           ))}
         </div>
-
-        {/* Ligne 2 : Groupes (Affiché quand pertinent) */}
-        {tab === 'test_review' && (
+        {hotels.length > 1 && (
           <div className="flex gap-2 overflow-x-auto pb-2 hide-scrollbar">
-            {['all', 'beginner_group', 'intermediate_group', 'sufficient_level_candidate'].map(g => (
-              <button key={g} onClick={() => setFilterGroup(g)}
+            <button key="all-hotels" onClick={() => setFilterHotel('all')}
+              className={`px-4 py-2 rounded-full text-[11px] font-black uppercase tracking-wider whitespace-nowrap transition-colors ${
+                filterHotel === 'all' ? 'bg-gray-900 text-white shadow-sm' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
+              }`}>
+              Tous les hôtels
+            </button>
+            {hotels.map(hotel => (
+              <button key={hotel} onClick={() => setFilterHotel(hotel)}
                 className={`px-4 py-2 rounded-full text-[11px] font-black uppercase tracking-wider whitespace-nowrap transition-colors ${
-                  filterGroup === g ? 'bg-brand-dark text-white shadow-sm' : 'bg-brand-light/10 text-brand-dark hover:bg-brand-light/20'
+                  filterHotel === hotel ? 'bg-gray-900 text-white shadow-sm' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
                 }`}>
-                {g === 'all' ? 'Tous' : GROUP_LABELS[g]}
+                {hotel}
               </button>
             ))}
           </div>
+        )}
+
+        {/* Ligne 2 : Groupes (Affiché quand pertinent) */}
+        {tab === 'test_review' && (
+          <>
+            <div className="flex gap-2 overflow-x-auto pb-2 hide-scrollbar">
+              {['all', 'beginner_group', 'intermediate_group', 'sufficient_level_candidate'].map(g => (
+                <button key={g} onClick={() => setFilterGroup(g)}
+                  className={`px-4 py-2 rounded-full text-[11px] font-black uppercase tracking-wider whitespace-nowrap transition-colors ${
+                    filterGroup === g ? 'bg-brand-dark text-white shadow-sm' : 'bg-brand-light/10 text-brand-dark hover:bg-brand-light/20'
+                  }`}>
+                  {g === 'all' ? 'Tous niveaux' : GROUP_LABELS[g]}
+                </button>
+              ))}
+            </div>
+            <div className="flex gap-2 overflow-x-auto pb-2 hide-scrollbar">
+              {['all', 'not_started', 'in_progress', 'completed'].map(statusValue => (
+                <button key={statusValue} onClick={() => setFilterTestStatus(statusValue)}
+                  className={`px-4 py-2 rounded-full text-[11px] font-black uppercase tracking-wider whitespace-nowrap transition-colors ${
+                    filterTestStatus === statusValue ? 'bg-emerald-600 text-white shadow-sm' : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
+                  }`}>
+                  {statusValue === 'all'
+                    ? 'Tous statuts'
+                    : statusValue === 'not_started'
+                      ? 'Non démarré'
+                      : statusValue === 'in_progress'
+                        ? 'En cours'
+                        : 'Terminés'}
+                </button>
+              ))}
+            </div>
+          </>
         )}
       </div>
 
@@ -669,6 +726,13 @@ function TestReviewTab({ learners, testMap, testResponses }: {
         <div className="bg-blue-50 text-blue-900 p-3 rounded-lg text-sm font-bold flex justify-between items-center mb-4">
           <span>Score automatisé provisoire :</span>
           <span className="text-xl">{test?.score_global}/100</span>
+        </div>
+
+        <div className="mb-4 rounded-xl border border-gray-200 bg-gray-50 p-3 text-sm text-gray-600">
+          <p><span className="font-semibold text-gray-900">Hôtel :</span> {learner?.etablissement || test?.candidate_hotel || 'Non renseigné'}</p>
+          <p className="mt-1"><span className="font-semibold text-gray-900">Service :</span> {learner?.metier_code ? METIER_LABELS[learner.metier_code] || learner.metier_code : test?.candidate_service || 'Non renseigné'}</p>
+          <p className="mt-1"><span className="font-semibold text-gray-900">Téléphone :</span> {test?.candidate_phone || 'Non renseigné'}</p>
+          <p className="mt-1"><span className="font-semibold text-gray-900">Email :</span> {test?.candidate_email || learner?.email || 'Non renseigné'}</p>
         </div>
 
         <h4 className="text-xs font-bold text-gray-500 mb-2 uppercase">Réponses Orales à vérifier</h4>
