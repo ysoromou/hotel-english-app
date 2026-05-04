@@ -236,14 +236,37 @@ export async function sendOrangeSms({
   }
 }
 
+const ORANGE_ALLOWED_HOSTS = new Set([
+  'api.orange.com',
+  'backend.dck.cloud.orange',
+])
+const ORANGE_ALLOWED_HOST_SUFFIXES = ['.api.orange.com', '.cloud.orange']
+
+function isOrangeResourceUrl(value: string): boolean {
+  let parsed: URL
+  try {
+    parsed = new URL(value)
+  } catch {
+    return false
+  }
+  if (parsed.protocol !== 'https:') return false
+  const host = parsed.hostname.toLowerCase()
+  if (ORANGE_ALLOWED_HOSTS.has(host)) return true
+  return ORANGE_ALLOWED_HOST_SUFFIXES.some((suffix) => host.endsWith(suffix))
+}
+
 export async function fetchOrangeDeliveryInfo(resourceURL: string): Promise<{
   httpStatus: number
   rawResponse: string
   deliveryStatus?: string
   errorMessage?: string
 }> {
-  if (!/^https:\/\/api\.orange\.com\//.test(resourceURL)) {
-    return { httpStatus: 0, rawResponse: '', errorMessage: 'resourceURL hors api.orange.com refuse.' }
+  if (!isOrangeResourceUrl(resourceURL)) {
+    return {
+      httpStatus: 0,
+      rawResponse: '',
+      errorMessage: 'resourceURL hors hostnames Orange autorises (api.orange.com, *.api.orange.com, *.cloud.orange).',
+    }
   }
   let accessToken: string
   try {
