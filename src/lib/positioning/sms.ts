@@ -87,12 +87,15 @@ function formatSenderAddress(value: string) {
 export async function sendOrangeSms({
   destination,
   message,
+  senderOverride,
 }: {
   destination: string
   message: string
+  senderOverride?: string | null
 }): Promise<MessageDispatchResult> {
   const provider = 'orange'
-  const senderRaw = (process.env.ORANGE_SMS_SENDER as string) || ''
+  const envSender = (process.env.ORANGE_SMS_SENDER as string) || ''
+  const senderRaw = (senderOverride && senderOverride.trim().length > 0 ? senderOverride : envSender).trim()
   const senderTel = formatSenderAddress(senderRaw)
   const recipientTel = formatTel(destination)
 
@@ -230,6 +233,55 @@ export async function sendOrangeSms({
     httpStatus: response.status,
     rawResponse: trimmedText,
     senderUsed: senderTel,
+  }
+}
+
+export async function fetchOrangeDeliveryInfo(resourceURL: string): Promise<{
+  httpStatus: number
+  rawResponse: string
+  deliveryStatus?: string
+  errorMessage?: string
+}> {
+  if (!/^https:\/\/api\.orange\.com\//.test(resourceURL)) {
+    return { httpStatus: 0, rawResponse: '', errorMessage: 'resourceURL hors api.orange.com refuse.' }
+  }
+  let accessToken: string
+  try {
+    accessToken = await fetchOrangeToken()
+  } catch (error) {
+    return {
+      httpStatus: 0,
+      rawResponse: '',
+      errorMessage: error instanceof Error ? error.message : 'Erreur OAuth Orange.',
+    }
+  }
+  let response: Response
+  try {
+    response = await fetch(resourceURL, {
+      method: 'GET',
+      headers: { Authorization: `Bearer ${accessToken}`, Accept: 'application/json' },
+    })
+  } catch (error) {
+    return {
+      httpStatus: 0,
+      rawResponse: '',
+      errorMessage: error instanceof Error ? error.message : 'Erreur reseau Orange.',
+    }
+  }
+  const text = (await response.text()).slice(0, 1200)
+  let deliveryStatus: string | undefined
+  try {
+    const payload = JSON.parse(text) as Record<string, any>
+    const info = payload?.outboundSMSMessageRequest?.deliveryInfoList?.deliveryInfo?.[0]
+    if (typeof info?.deliveryStatus === 'string') deliveryStatus = info.deliveryStatus
+  } catch {
+    // ignore
+  }
+  return {
+    httpStatus: response.status,
+    rawResponse: text,
+    deliveryStatus,
+    errorMessage: response.ok ? undefined : `Orange ${response.status}`,
   }
 }
 

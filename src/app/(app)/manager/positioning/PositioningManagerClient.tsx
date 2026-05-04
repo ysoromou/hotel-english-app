@@ -10,7 +10,8 @@ import { ImportPreviewRow } from '@/lib/positioning/types'
 type ManagerTab = 'overview' | 'import' | 'followup' | 'sms' | 'exports'
 type DashboardRow = PositioningDashboardData['rows'][number]
 type SendMode = 'send_all' | 'resend_non_started' | 'resend_incomplete' | 'send_selected' | 'mark_sent'
-type SmsAction = 'test_single' | 'initial' | 'reminder_1' | 'reminder_2' | 'export_csv'
+type SmsAction = 'test_single' | 'initial' | 'reminder_1' | 'reminder_2' | 'export_csv' | 'check_delivery'
+type TestVariant = 'A' | 'B' | 'C'
 
 const SMS_TEST_NUMBER_DISPLAY = '2250797660543'
 
@@ -22,6 +23,7 @@ interface PositioningManagerClientProps {
 }
 
 interface SmsTestResult {
+  variant?: TestVariant
   status: string
   destination: string
   errorMessage?: string
@@ -30,8 +32,16 @@ interface SmsTestResult {
   httpStatus?: number
   providerMessageId?: string
   senderUsed?: string
+  senderOverride?: string | null
   rawResponse?: string
   logInsertError?: string | null
+}
+
+interface SmsDeliveryResult {
+  httpStatus?: number
+  deliveryStatus?: string
+  rawResponse?: string
+  errorMessage?: string
 }
 
 interface SmsRunResult {
@@ -201,6 +211,10 @@ export default function PositioningManagerClient({
   const [smsRunResult, setSmsRunResult] = useState<SmsRunResult | null>(null)
   const [smsError, setSmsError] = useState<string | null>(null)
   const [smsTestPassed, setSmsTestPassed] = useState(false)
+  const [smsTestDestination, setSmsTestDestination] = useState(SMS_TEST_NUMBER_DISPLAY)
+  const [smsSenderOverride, setSmsSenderOverride] = useState('')
+  const [smsDeliveryResult, setSmsDeliveryResult] = useState<SmsDeliveryResult | null>(null)
+  const [smsDeliveryBusy, setSmsDeliveryBusy] = useState(false)
 
   const rows = initialDashboard.rows
   const hasParticipants = rows.length > 0
@@ -374,6 +388,76 @@ export default function PositioningManagerClient({
 
   async function handleCopy(value: string) {
     await navigator.clipboard.writeText(value)
+  }
+
+  async function runTestVariant(variant: TestVariant) {
+    setSmsBusy('test_single')
+    setSmsError(null)
+    setSmsDeliveryResult(null)
+    try {
+      const response = await fetch('/api/positioning/sms/send', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'test_single',
+          variant,
+          destination: smsTestDestination,
+          senderOverride: smsSenderOverride || undefined,
+        }),
+      })
+      const payload = await response.json()
+      if (!response.ok) throw new Error(payload.error || 'Echec envoi SMS test.')
+      setSmsTestResult({
+        variant: payload.variant,
+        status: payload.status,
+        destination: payload.destination,
+        errorMessage: payload.errorMessage,
+        messageBody: payload.messageBody,
+        provider: payload.provider,
+        httpStatus: payload.httpStatus,
+        providerMessageId: payload.providerMessageId,
+        senderUsed: payload.senderUsed,
+        senderOverride: payload.senderOverride,
+        rawResponse: payload.rawResponse,
+        logInsertError: payload.logInsertError ?? null,
+      })
+      setSmsTestPassed(payload.status === 'sent')
+      router.refresh()
+    } catch (error) {
+      setSmsError(error instanceof Error ? error.message : 'Erreur inconnue.')
+    } finally {
+      setSmsBusy(null)
+    }
+  }
+
+  async function checkDelivery() {
+    if (!smsTestResult?.providerMessageId) return
+    setSmsDeliveryBusy(true)
+    setSmsDeliveryResult(null)
+    try {
+      const response = await fetch('/api/positioning/sms/send', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'check_delivery',
+          resourceURL: smsTestResult.providerMessageId,
+        }),
+      })
+      const payload = await response.json()
+      if (!response.ok) throw new Error(payload.error || 'Verification livraison impossible.')
+      setSmsDeliveryResult({
+        httpStatus: payload.httpStatus,
+        deliveryStatus: payload.deliveryStatus,
+        rawResponse: payload.rawResponse,
+        errorMessage: payload.errorMessage,
+      })
+    } catch (error) {
+      setSmsDeliveryResult({
+        errorMessage: error instanceof Error ? error.message : 'Erreur inconnue.',
+      })
+    } finally {
+      setSmsDeliveryBusy(false)
+    }
   }
 
   async function runSmsAction(action: SmsAction, opts?: { skipConfirm?: boolean }) {
@@ -1236,15 +1320,60 @@ export default function PositioningManagerClient({
               />
             </label>
 
+            <div className="mt-5 rounded-2xl border border-emerald-100 bg-emerald-50/40 p-4">
+              <p className="text-sm font-semibold text-emerald-900">Diagnostic SMS test (3 variantes)</p>
+              <p className="mt-1 text-xs text-emerald-900/80">
+                Aucun salarie touche. Sert a isoler la cause de non-livraison apres acceptation Orange.
+              </p>
+              <div className="mt-3 grid gap-3 md:grid-cols-2">
+                <label className="flex flex-col gap-1 text-xs text-emerald-900">
+                  <span className="font-semibold">Numero destinataire (par defaut {SMS_TEST_NUMBER_DISPLAY})</span>
+                  <input
+                    value={smsTestDestination}
+                    onChange={(event) => setSmsTestDestination(event.target.value)}
+                    placeholder={SMS_TEST_NUMBER_DISPLAY}
+                    className="rounded-xl border border-emerald-200 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:border-emerald-500"
+                  />
+                </label>
+                <label className="flex flex-col gap-1 text-xs text-emerald-900">
+                  <span className="font-semibold">Sender override (laisser vide = ORANGE_SMS_SENDER)</span>
+                  <input
+                    value={smsSenderOverride}
+                    onChange={(event) => setSmsSenderOverride(event.target.value)}
+                    placeholder="ex: tel:+22500000000 ou un sender ID"
+                    className="rounded-xl border border-emerald-200 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:border-emerald-500"
+                  />
+                </label>
+              </div>
+              <div className="mt-3 flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => runTestVariant('A')}
+                  disabled={!smsConfigured || smsBusy !== null}
+                  className="rounded-full bg-emerald-600 px-4 py-2 text-xs font-semibold text-white shadow-sm hover:bg-emerald-700 disabled:opacity-50"
+                >
+                  Test A : sans URL
+                </button>
+                <button
+                  type="button"
+                  onClick={() => runTestVariant('B')}
+                  disabled={!smsConfigured || smsBusy !== null}
+                  className="rounded-full bg-emerald-600 px-4 py-2 text-xs font-semibold text-white shadow-sm hover:bg-emerald-700 disabled:opacity-50"
+                >
+                  Test B : avec URL actuelle
+                </button>
+                <button
+                  type="button"
+                  onClick={() => runTestVariant('C')}
+                  disabled={!smsConfigured || smsBusy !== null}
+                  className="rounded-full bg-emerald-600 px-4 py-2 text-xs font-semibold text-white shadow-sm hover:bg-emerald-700 disabled:opacity-50"
+                >
+                  Test C : sender par defaut
+                </button>
+              </div>
+            </div>
+
             <div className="mt-4 grid gap-3 md:grid-cols-2">
-              <SmsActionCard
-                title="Envoyer un SMS test"
-                description={`Envoi unique vers ${SMS_TEST_NUMBER_DISPLAY}. Aucun salarie touche.`}
-                buttonLabel={smsBusy === 'test_single' ? 'Envoi...' : 'Envoyer test Orange'}
-                disabled={!smsConfigured || smsBusy !== null}
-                onClick={() => runSmsAction('test_single', { skipConfirm: true })}
-                tone="emerald"
-              />
               <SmsActionCard
                 title="Export CSV phone,message"
                 description="Genere un CSV (initial + relances) pour envoi externe. Fonctionne meme sans Orange."
@@ -1301,9 +1430,12 @@ export default function PositioningManagerClient({
               >
                 <p className="font-semibold">
                   {smsTestResult.status === 'sent'
-                    ? `SMS accepte par Orange (HTTP ${smsTestResult.httpStatus ?? '?'}) -> ${smsTestResult.destination}`
+                    ? `Accepte par Orange (HTTP ${smsTestResult.httpStatus ?? '?'}) -> ${smsTestResult.destination}. Livraison a confirmer.`
                     : `Echec SMS test (HTTP ${smsTestResult.httpStatus ?? 'n/a'})`}
                 </p>
+                {smsTestResult.variant ? (
+                  <p className="mt-1 text-xs">Variante : {smsTestResult.variant}</p>
+                ) : null}
                 {smsTestResult.providerMessageId ? (
                   <p className="mt-1 break-all text-xs">
                     resourceURL : {smsTestResult.providerMessageId}
@@ -1311,6 +1443,9 @@ export default function PositioningManagerClient({
                 ) : null}
                 {smsTestResult.senderUsed ? (
                   <p className="mt-1 text-xs">Sender utilise : {smsTestResult.senderUsed}</p>
+                ) : null}
+                {smsTestResult.senderOverride ? (
+                  <p className="mt-1 text-xs">Sender override : {smsTestResult.senderOverride}</p>
                 ) : null}
                 {smsTestResult.errorMessage ? (
                   <p className="mt-1">Erreur : {smsTestResult.errorMessage}</p>
@@ -1341,9 +1476,39 @@ export default function PositioningManagerClient({
                 ) : null}
                 <p className="mt-2 text-xs">
                   {smsTestResult.status === 'sent'
-                    ? 'Si vous ne recevez rien sur le telephone, verifier le sender ORANGE_SMS_SENDER, le quota Orange et que le numero est en liste blanche.'
+                    ? 'Acceptation != livraison. Cliquez "Verifier livraison" pour interroger Orange. Si pas recu sur le telephone : verifier sender, quota, et liste blanche developpeur Orange.'
                     : 'Aucun SMS reel envoye. Les boutons d envoi reel restent verrouilles.'}
                 </p>
+                {smsTestResult.providerMessageId ? (
+                  <button
+                    type="button"
+                    onClick={checkDelivery}
+                    disabled={smsDeliveryBusy}
+                    className="mt-3 rounded-full border border-emerald-300 bg-white px-3 py-1.5 text-xs font-semibold text-emerald-800 hover:border-emerald-500 disabled:opacity-50"
+                  >
+                    {smsDeliveryBusy ? 'Verification...' : 'Verifier livraison Orange'}
+                  </button>
+                ) : null}
+                {smsDeliveryResult ? (
+                  <div className="mt-3 rounded-xl border border-emerald-200 bg-white px-3 py-2 text-xs text-gray-800">
+                    <p className="font-semibold">
+                      Delivery (HTTP {smsDeliveryResult.httpStatus ?? '?'}) :
+                      {' '}
+                      {smsDeliveryResult.deliveryStatus || 'inconnu'}
+                    </p>
+                    {smsDeliveryResult.errorMessage ? (
+                      <p className="mt-1 text-rose-700">Erreur : {smsDeliveryResult.errorMessage}</p>
+                    ) : null}
+                    {smsDeliveryResult.rawResponse ? (
+                      <details className="mt-2">
+                        <summary className="cursor-pointer">Reponse brute</summary>
+                        <pre className="mt-2 whitespace-pre-wrap break-all font-mono">
+                          {smsDeliveryResult.rawResponse}
+                        </pre>
+                      </details>
+                    ) : null}
+                  </div>
+                ) : null}
               </div>
             ) : null}
 

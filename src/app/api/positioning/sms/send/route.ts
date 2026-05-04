@@ -14,13 +14,17 @@ import {
   SMS_TEST_NUMBER,
   SmsMessageKind,
   buildSmsBody,
+  fetchOrangeDeliveryInfo,
   getSmsDestination,
   getSmsProviderConfig,
   isValidSmsPhone,
   sendOrangeSms,
 } from '@/lib/positioning/sms'
 
-type SmsAction = SmsMessageKind | 'export_csv'
+type SmsAction = SmsMessageKind | 'export_csv' | 'check_delivery'
+type TestVariant = 'A' | 'B' | 'C'
+
+const DEFAULT_FALLBACK_SENDER = 'tel:+22500000000'
 
 function defaultDeadline(deadlineAt: string | null) {
   if (deadlineAt) return deadlineAt
@@ -69,6 +73,10 @@ export async function POST(request: NextRequest) {
   const body = (await request.json()) as {
     action?: SmsAction
     deadlineAt?: string | null
+    variant?: TestVariant
+    destination?: string
+    senderOverride?: string
+    resourceURL?: string
   }
   const action = body.action
   if (!action) {
@@ -77,6 +85,25 @@ export async function POST(request: NextRequest) {
 
   const providerConfig = getSmsProviderConfig()
 
+  if (action === 'check_delivery') {
+    if (!providerConfig.configured) {
+      return NextResponse.json(
+        { error: `Verification impossible : ${providerConfig.reason}` },
+        { status: 400 },
+      )
+    }
+    if (!body.resourceURL) {
+      return NextResponse.json({ error: 'resourceURL manquant.' }, { status: 400 })
+    }
+    const result = await fetchOrangeDeliveryInfo(body.resourceURL)
+    console.log('[positioning-sms] check_delivery', {
+      httpStatus: result.httpStatus,
+      deliveryStatus: result.deliveryStatus,
+      errorMessage: result.errorMessage,
+    })
+    return NextResponse.json({ action, ...result })
+  }
+
   if (action === 'test_single') {
     if (!providerConfig.configured) {
       return NextResponse.json(
@@ -84,13 +111,35 @@ export async function POST(request: NextRequest) {
         { status: 400 },
       )
     }
-    const messageBody = buildSmsBody({ kind: 'test_single', accessUrl: '' })
-    const dispatch = await sendOrangeSms({ destination: SMS_TEST_NUMBER, message: messageBody })
+    const variant: TestVariant = body.variant || 'B'
+    const destination = (body.destination && body.destination.replace(/\D+/g, '').length >= 10
+      ? body.destination.replace(/\D+/g, '')
+      : SMS_TEST_NUMBER)
+
+    let messageBody: string
+    if (variant === 'A') {
+      messageBody = 'Test SMS CAFORMAC : ce message ne contient aucun lien. Repondez OK si recu.'
+    } else if (variant === 'C') {
+      messageBody = 'Test SMS CAFORMAC sender par defaut : message simple sans URL.'
+    } else {
+      messageBody = buildSmsBody({
+        kind: 'test_single',
+        accessUrl: 'https://hotel-english-app.vercel.app/test-online',
+      })
+    }
+
+    let senderOverride: string | null = body.senderOverride?.trim() || null
+    if (variant === 'C' && !senderOverride) {
+      senderOverride = DEFAULT_FALLBACK_SENDER
+    }
+
+    const dispatch = await sendOrangeSms({ destination, message: messageBody, senderOverride })
     const dispatchedAt = new Date().toISOString()
 
     console.log('[positioning-sms] test_single', {
+      variant,
       provider: dispatch.provider,
-      destination: SMS_TEST_NUMBER,
+      destination,
       status: dispatch.status,
       httpStatus: dispatch.httpStatus,
       senderUsed: dispatch.senderUsed,
@@ -103,13 +152,15 @@ export async function POST(request: NextRequest) {
       participant_id: null,
       invite_id: null,
       channel: 'sms',
-      destination: SMS_TEST_NUMBER,
+      destination,
       message_body: messageBody,
       provider: dispatch.provider,
-      message_kind: 'test_single',
+      message_kind: `test_single_${variant}`,
       status: dispatch.status === 'sent' ? 'sent' : 'failed',
       provider_message_id: dispatch.providerMessageId || null,
       provider_payload: {
+        variant,
+        senderOverride,
         senderUsed: dispatch.senderUsed,
         httpStatus: dispatch.httpStatus,
         rawResponse: dispatch.rawResponse,
@@ -124,12 +175,14 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
       action,
+      variant,
       provider: dispatch.provider,
-      destination: SMS_TEST_NUMBER,
+      destination,
       status: dispatch.status,
       httpStatus: dispatch.httpStatus,
       providerMessageId: dispatch.providerMessageId,
       senderUsed: dispatch.senderUsed,
+      senderOverride,
       rawResponse: dispatch.rawResponse,
       errorMessage: dispatch.errorMessage,
       messageBody,
