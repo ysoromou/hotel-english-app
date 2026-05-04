@@ -9,6 +9,7 @@ import { ImportPreviewRow } from '@/lib/positioning/types'
 
 type ManagerTab = 'overview' | 'import' | 'followup' | 'exports'
 type DashboardRow = PositioningDashboardData['rows'][number]
+type SendMode = 'send_all' | 'resend_non_started' | 'resend_incomplete' | 'send_selected' | 'mark_sent'
 
 interface PositioningManagerClientProps {
   initialDashboard: PositioningDashboardData
@@ -30,7 +31,18 @@ interface ImportPreviewPayload {
   }
 }
 
-function formatText(value: string | null | undefined, fallback = 'Donnee non disponible') {
+interface DispatchResult {
+  participantId: string
+  fullName: string
+  status: string
+  provider: string
+  deliveryUrl?: string
+  messageBody?: string
+  messageId?: string
+  errorMessage?: string
+}
+
+function formatText(value: string | null | undefined, fallback = 'Non renseigne') {
   return value && value.trim().length > 0 ? value : fallback
 }
 
@@ -55,7 +67,12 @@ function formatInviteStatus(value: string) {
     completed: 'Termine',
     expired: 'Expire',
     in_progress: 'En cours',
+    incomplete: 'Incomplet',
+    absent: 'Absent',
+    non_opened: 'Non ouvert',
+    non_started: 'Non demarre',
     prepared: 'Prepare',
+    queued: 'En attente',
     failed: 'Echec',
   }
   return labels[value] || value
@@ -75,6 +92,51 @@ function formatAbsenceLabel(value: DashboardRow['absenceCategory']) {
 
 function formatSectionScore(value: string | undefined) {
   return value || 'Non evalue'
+}
+
+function formatDateTime(value: string | null | undefined) {
+  if (!value) return 'Jamais'
+  return new Date(value).toLocaleString('fr-FR')
+}
+
+function getRowStatusLabel(row: DashboardRow) {
+  if (row.attemptStatus === 'completed') return 'Termine'
+  if (row.absenceCategory === 'incomplete') return 'Incomplet'
+  if (row.attemptStatus === 'in_progress' || row.inviteStatus === 'started') return 'Demarre'
+  if (row.inviteStatus === 'opened') return 'Ouvert'
+  if (row.inviteStatus === 'sent') return 'Envoye'
+  if (row.inviteStatus === 'expired') return 'Expire'
+  return 'Non envoye'
+}
+
+function getMessageStatusLabel(row: DashboardRow) {
+  if (!row.latestMessageStatus) return 'Aucun message prepare'
+  if (row.latestMessageStatus === 'prepared') {
+    return row.latestMessageKind === 'reminder' ? 'Relance preparee' : 'Message prepare'
+  }
+  return formatInviteStatus(row.latestMessageStatus)
+}
+
+function getPrepareModeForRow(row: DashboardRow): Exclude<SendMode, 'send_all' | 'mark_sent'> | null {
+  if (row.attemptStatus === 'completed') return null
+  if (row.absenceCategory === 'incomplete') return 'resend_incomplete'
+  if (row.inviteStatus === 'not_sent') return 'send_selected'
+  return 'resend_non_started'
+}
+
+function getPrepareLabel(row: DashboardRow) {
+  if (row.latestMessageStatus === 'prepared') {
+    return row.latestMessageKind === 'reminder' ? 'Regenerer la relance' : 'Regenerer le lien'
+  }
+  if (row.inviteStatus === 'not_sent') return 'Preparer le lien'
+  if (row.absenceCategory === 'incomplete') return 'Preparer la relance'
+  return 'Relancer sur WhatsApp'
+}
+
+function getMarkLabel(row: DashboardRow) {
+  return row.latestMessageKind === 'reminder' || row.inviteStatus !== 'not_sent'
+    ? 'Marquer comme relancee'
+    : 'Marquer comme envoyee'
 }
 
 export default function PositioningManagerClient({
@@ -97,16 +159,7 @@ export default function PositioningManagerClient({
 
   const [deadlineAt, setDeadlineAt] = useState('')
   const [dispatchBusy, setDispatchBusy] = useState(false)
-  const [dispatchResults, setDispatchResults] = useState<
-    Array<{
-      participantId: string
-      fullName: string
-      status: string
-      provider: string
-      deliveryUrl?: string
-      errorMessage?: string
-    }>
-  >([])
+  const [dispatchResults, setDispatchResults] = useState<DispatchResult[]>([])
   const [recalcBusy, setRecalcBusy] = useState(false)
 
   const rows = initialDashboard.rows
@@ -153,6 +206,7 @@ export default function PositioningManagerClient({
   }, [filterDepartment, filterHotel, filterLevel, filterStatus, rows, search])
 
   const selectedRow = rows.find((row) => row.participantId === selectedParticipantId) || null
+  const followupRows = rows.filter((row) => row.attemptStatus !== 'completed')
 
   async function handlePreviewImport(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -218,7 +272,7 @@ export default function PositioningManagerClient({
     }
   }
 
-  async function handleSend(mode: 'send_all' | 'resend_non_started' | 'resend_incomplete') {
+  async function handleSend(mode: SendMode, participantIds?: string[], participantId?: string, messageId?: string) {
     setDispatchBusy(true)
     try {
       const response = await fetch('/api/positioning/send', {
@@ -226,6 +280,9 @@ export default function PositioningManagerClient({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           mode,
+          participantIds,
+          participantId,
+          messageId,
           deadlineAt: deadlineAt ? new Date(deadlineAt).toISOString() : null,
         }),
       })
@@ -251,6 +308,16 @@ export default function PositioningManagerClient({
     }
   }
 
+  async function handlePrepareRow(row: DashboardRow) {
+    const mode = getPrepareModeForRow(row)
+    if (!mode) return
+    await handleSend(mode, [row.participantId])
+  }
+
+  async function handleMarkSent(row: DashboardRow) {
+    await handleSend('mark_sent', undefined, row.participantId, row.latestMessageId || undefined)
+  }
+
   async function handleRecalculateGroups() {
     setRecalcBusy(true)
     try {
@@ -265,11 +332,13 @@ export default function PositioningManagerClient({
     }
   }
 
-  async function handleCopy(url: string) {
-    await navigator.clipboard.writeText(url)
+  async function handleCopy(value: string) {
+    await navigator.clipboard.writeText(value)
   }
 
   const countNotSent = rows.filter((row) => row.inviteStatus === 'not_sent').length
+  const countOpened = rows.filter((row) => row.inviteStatus === 'opened' || Boolean(row.openedAt)).length
+  const countStarted = rows.filter((row) => row.attemptStatus === 'in_progress' || Boolean(row.startedAt)).length
   const countNonOpened = rows.filter((row) => row.absenceCategory === 'non_opened').length
   const countNonStarted = rows.filter((row) => row.absenceCategory === 'non_started').length
   const countIncomplete = rows.filter((row) => row.absenceCategory === 'incomplete').length
@@ -281,14 +350,14 @@ export default function PositioningManagerClient({
         <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <div className="max-w-3xl">
             <p className="text-sm font-semibold uppercase tracking-[0.18em] text-emerald-600">
-              Positioning
+              Test de positionnement
             </p>
             <h1 className="mt-1 text-2xl font-bold text-gray-900">
-              Tests de positionnement mobile
+              Pilotage RH des passations NOOM / SEEN
             </h1>
             <p className="mt-2 text-sm text-gray-600">
-              Import des participants, envoi individuel, passation sur mobile et lecture immediate
-              des resultats pour le pilote.
+              Import de la liste, generation des liens individuels, envoi WhatsApp manuel,
+              passation mobile et resultats exploitables dans une interface unique.
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -309,10 +378,14 @@ export default function PositioningManagerClient({
           </div>
         </div>
 
-        <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+        <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-4 2xl:grid-cols-8">
           <SummaryCard label="Participants" value={initialDashboard.summary.totalParticipants} />
           <SummaryCard label="Envoyes" value={initialDashboard.summary.totalSent} />
+          <SummaryCard label="Ouverts" value={countOpened} />
+          <SummaryCard label="Commences" value={countStarted} />
           <SummaryCard label="Termines" value={initialDashboard.summary.totalCompleted} />
+          <SummaryCard label="Incomplets" value={countIncomplete} />
+          <SummaryCard label="Absents" value={countAbsents} />
           <SummaryCard label="Taux de completion" value={`${initialDashboard.summary.completionRate}%`} />
         </div>
       </section>
@@ -446,10 +519,10 @@ export default function PositioningManagerClient({
                             </td>
                             <td className="py-3 pr-4 text-gray-600">{row.hotel}</td>
                             <td className="py-3 pr-4 text-gray-600">
-                              {formatText(row.department, 'Donnee non disponible')}
+                              {formatText(row.department, 'Service non renseigne')}
                             </td>
                             <td className="py-3 pr-4">
-                              <StatusBadge label={formatInviteStatus(row.attemptStatus === 'completed' ? 'completed' : row.inviteStatus)} />
+                              <StatusBadge label={getRowStatusLabel(row)} />
                             </td>
                             <td className="py-3 pr-4 font-semibold text-gray-900">{formatScore(row.totalScore)}</td>
                             <td className="py-3 pr-4 text-gray-600">{formatLevel(row.levelLabel)}</td>
@@ -510,7 +583,7 @@ export default function PositioningManagerClient({
                       </div>
                       <div className="mt-3 text-xs text-gray-500">
                         <p>Hotels : {formatBreakdown(group.hotels)}</p>
-                        <p className="mt-1">NOOM / SEEN : {formatBreakdown(group.organizations)}</p>
+                        <p className="mt-1">Entites : {formatBreakdown(group.organizations)}</p>
                       </div>
                     </div>
                   ))}
@@ -549,15 +622,64 @@ export default function PositioningManagerClient({
                   <div className="grid grid-cols-2 gap-3">
                     <MiniInfo label="Telephone" value={formatText(selectedRow.phone)} />
                     <MiniInfo label="Email" value={formatText(selectedRow.email)} />
-                    <MiniInfo
-                      label="Statut"
-                      value={formatInviteStatus(
-                        selectedRow.attemptStatus === 'completed' ? 'completed' : selectedRow.inviteStatus,
-                      )}
-                    />
+                    <MiniInfo label="Statut" value={getRowStatusLabel(selectedRow)} />
+                    <MiniInfo label="Suivi" value={formatAbsenceLabel(selectedRow.absenceCategory)} />
                     <MiniInfo label="Niveau" value={formatLevel(selectedRow.levelLabel)} />
                     <MiniInfo label="Score" value={formatScore(selectedRow.totalScore)} />
                     <MiniInfo label="Groupe" value={formatGroup(selectedRow.recommendedGroup)} />
+                    <MiniInfo label="Dernier message" value={getMessageStatusLabel(selectedRow)} />
+                    <MiniInfo label="Derniere action" value={formatDateTime(selectedRow.latestMessageAt)} />
+                  </div>
+                  <div className="rounded-2xl bg-gray-50 p-4">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-gray-400">
+                      Envoi WhatsApp
+                    </p>
+                    <p className="mt-2 text-sm text-gray-600">
+                      {selectedRow.latestMessageBody
+                        ? 'Le dernier message prepare peut etre rouvert, copie ou confirme comme envoye.'
+                        : 'Aucun message prepare pour ce participant.'}
+                    </p>
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      {getPrepareModeForRow(selectedRow) ? (
+                        <button
+                          type="button"
+                          onClick={() => handlePrepareRow(selectedRow)}
+                          disabled={dispatchBusy}
+                          className="rounded-full border border-gray-200 px-3 py-1.5 text-xs font-semibold text-gray-700 hover:border-gray-300 disabled:opacity-60"
+                        >
+                          {getPrepareLabel(selectedRow)}
+                        </button>
+                      ) : null}
+                      {selectedRow.latestDeliveryUrl ? (
+                        <a
+                          href={selectedRow.latestDeliveryUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="rounded-full bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white"
+                        >
+                          Ouvrir WhatsApp
+                        </a>
+                      ) : null}
+                      {selectedRow.latestMessageBody ? (
+                        <button
+                          type="button"
+                          onClick={() => handleCopy(selectedRow.latestMessageBody as string)}
+                          className="rounded-full border border-gray-200 px-3 py-1.5 text-xs font-semibold text-gray-700 hover:border-gray-300"
+                        >
+                          Copier le message
+                        </button>
+                      ) : null}
+                      {selectedRow.latestMessageStatus === 'prepared' ? (
+                        <button
+                          type="button"
+                          onClick={() => handleMarkSent(selectedRow)}
+                          disabled={dispatchBusy}
+                          className="rounded-full border border-emerald-200 px-3 py-1.5 text-xs font-semibold text-emerald-700 hover:border-emerald-300 disabled:opacity-60"
+                        >
+                          {getMarkLabel(selectedRow)}
+                        </button>
+                      ) : null}
+                    </div>
                   </div>
                   <div className="rounded-2xl bg-gray-50 p-4">
                     <p className="text-xs font-semibold uppercase tracking-wide text-gray-400">
@@ -692,7 +814,7 @@ export default function PositioningManagerClient({
                               {row.normalized.first_name} {row.normalized.last_name}
                             </p>
                             <p className="text-xs text-gray-500">
-                              {formatText(row.normalized.department, 'Donnee non disponible')}
+                              {formatText(row.normalized.department, 'Service non renseigne')}
                             </p>
                           </td>
                           <td className="py-3 pr-4 text-gray-600">
@@ -745,8 +867,8 @@ export default function PositioningManagerClient({
           <section className="rounded-3xl border border-gray-200 bg-white p-5 shadow-sm">
             <h2 className="text-lg font-semibold text-gray-900">Relances WhatsApp</h2>
             <p className="mt-1 text-sm text-gray-500">
-              Envoi reel via provider configure, ou preparation manuelle via lien wa.me si le mode
-              manuel est actif.
+              File manuelle WhatsApp : l'application prepare les liens personnels et les messages,
+              puis le manager les ouvre dans wa.me avant de confirmer l'envoi.
             </p>
 
             {!hasParticipants ? (
@@ -770,21 +892,21 @@ export default function PositioningManagerClient({
 
                 <div className="mt-4 grid gap-3 md:grid-cols-3">
                   <ActionCard
-                    title="Envoyer tout"
-                    description="Participants importes mais jamais contactes."
+                    title="Preparer tous les liens"
+                    description="Participants importes encore non envoyes."
                     count={countNotSent}
                     onClick={() => handleSend('send_all')}
                     busy={dispatchBusy}
                   />
                   <ActionCard
-                    title="Renvoyer aux non demarres"
-                    description="Liens non ouverts, non demarres ou absents."
+                    title="Preparer relances non demarres"
+                    description="Liens non ouverts, non demarres ou expires."
                     count={countNonOpened + countNonStarted + countAbsents}
                     onClick={() => handleSend('resend_non_started')}
                     busy={dispatchBusy}
                   />
                   <ActionCard
-                    title="Renvoyer aux incomplets"
+                    title="Preparer relances incomplets"
                     description="Tests commencés mais non termines."
                     count={countIncomplete}
                     onClick={() => handleSend('resend_incomplete')}
@@ -792,58 +914,100 @@ export default function PositioningManagerClient({
                   />
                 </div>
 
+                {dispatchResults.length > 0 ? (
+                  <div className="mt-4 rounded-2xl border border-emerald-100 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">
+                    <p className="font-semibold">Derniere preparation</p>
+                    <div className="mt-2 space-y-1">
+                      {dispatchResults.map((result) => (
+                        <p key={`${result.participantId}-${result.messageId || result.status}`}>
+                          {result.fullName} - {formatInviteStatus(result.status)}
+                          {result.errorMessage ? ` - ${result.errorMessage}` : ''}
+                        </p>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
+
                 <div className="mt-5 overflow-x-auto">
                   <table className="min-w-full text-sm">
                     <thead className="text-left text-xs uppercase tracking-wide text-gray-400">
                       <tr>
                         <th className="pb-3 pr-4">Participant</th>
-                        <th className="pb-3 pr-4">Provider</th>
                         <th className="pb-3 pr-4">Statut</th>
+                        <th className="pb-3 pr-4">Dernier message</th>
                         <th className="pb-3">Action</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {dispatchResults.length === 0 ? (
+                      {followupRows.length === 0 ? (
                         <tr>
                           <td colSpan={4} className="border-t border-gray-100 py-4 text-sm text-gray-500">
-                            Aucun envoi prepare dans cette session.
+                            Tous les participants ont termine leur test. Aucune relance necessaire.
                           </td>
                         </tr>
                       ) : (
-                        dispatchResults.map((result) => (
-                          <tr key={`${result.participantId}-${result.status}`} className="border-t border-gray-100">
+                        followupRows.map((row) => (
+                          <tr key={row.participantId} className="border-t border-gray-100 align-top">
                             <td className="py-3 pr-4">
-                              <p className="font-medium text-gray-900">{result.fullName}</p>
-                              {result.errorMessage ? (
-                                <p className="text-xs text-red-500">{result.errorMessage}</p>
+                              <p className="font-medium text-gray-900">{row.fullName}</p>
+                              <p className="text-xs text-gray-500">
+                                {row.hotel} · {formatText(row.department, 'Service non renseigne')}
+                              </p>
+                            </td>
+                            <td className="py-3 pr-4">
+                              <StatusBadge label={getRowStatusLabel(row)} />
+                              {row.absenceCategory !== 'none' ? (
+                                <p className="mt-1 text-xs text-gray-500">
+                                  Suivi : {formatAbsenceLabel(row.absenceCategory)}
+                                </p>
                               ) : null}
                             </td>
-                            <td className="py-3 pr-4 text-gray-600">{result.provider}</td>
-                            <td className="py-3 pr-4">
-                              <StatusBadge label={formatInviteStatus(result.status)} />
+                            <td className="py-3 pr-4 text-gray-600">
+                              <p>{getMessageStatusLabel(row)}</p>
+                              <p className="mt-1 text-xs text-gray-500">{formatDateTime(row.latestMessageAt)}</p>
                             </td>
                             <td className="py-3">
-                              {result.deliveryUrl ? (
-                                <div className="flex flex-wrap gap-2">
+                              <div className="flex flex-wrap gap-2">
+                                {getPrepareModeForRow(row) ? (
+                                  <button
+                                    type="button"
+                                    onClick={() => handlePrepareRow(row)}
+                                    disabled={dispatchBusy}
+                                    className="rounded-full border border-gray-200 px-3 py-1.5 text-xs font-semibold text-gray-700 hover:border-gray-300 disabled:opacity-60"
+                                  >
+                                    {getPrepareLabel(row)}
+                                  </button>
+                                ) : null}
+                                {row.latestDeliveryUrl ? (
                                   <a
-                                    href={result.deliveryUrl}
+                                    href={row.latestDeliveryUrl}
                                     target="_blank"
                                     rel="noreferrer"
                                     className="rounded-full bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white"
                                   >
                                     Ouvrir WhatsApp
                                   </a>
+                                ) : null}
+                                {row.latestMessageBody ? (
                                   <button
                                     type="button"
-                                    onClick={() => handleCopy(result.deliveryUrl as string)}
+                                    onClick={() => handleCopy(row.latestMessageBody as string)}
                                     className="rounded-full border border-gray-200 px-3 py-1.5 text-xs font-semibold text-gray-700"
                                   >
-                                    Copier
+                                    Copier le message
                                   </button>
-                                </div>
-                              ) : (
-                                <span className="text-xs text-gray-500">En attente</span>
-                              )}
+                                ) : null}
+                                {row.latestMessageStatus === 'prepared' ? (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleMarkSent(row)}
+                                    disabled={dispatchBusy}
+                                    className="rounded-full border border-emerald-200 px-3 py-1.5 text-xs font-semibold text-emerald-700 hover:border-emerald-300 disabled:opacity-60"
+                                  >
+                                    {getMarkLabel(row)}
+                                  </button>
+                                ) : null}
+                              </div>
                             </td>
                           </tr>
                         ))
@@ -1001,9 +1165,9 @@ function StatusBadge({ label }: { label: string }) {
   const tone =
     label === 'Termine' || label === 'completed'
       ? 'bg-emerald-50 text-emerald-700'
-      : label === 'En cours' || label === 'Demarre' || label === 'Ouvert'
+      : label === 'En cours' || label === 'Demarre' || label === 'Ouvert' || label === 'Incomplet'
         ? 'bg-amber-50 text-amber-700'
-        : label === 'Echec' || label === 'Expire'
+      : label === 'Echec' || label === 'Expire'
           ? 'bg-red-50 text-red-700'
           : 'bg-gray-100 text-gray-600'
 

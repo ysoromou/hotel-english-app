@@ -100,22 +100,29 @@ export async function GET(_: NextRequest, { params }: { params: { token: string 
 
   const { admin, invite, participant, attempt, questions, isExpired } = context
 
-  if (!isExpired && invite.status === 'sent') {
+  if (!isExpired && !invite.opened_at && invite.status !== 'completed' && attempt?.status !== 'completed') {
     await admin
       .from('test_invites')
       .update({
-        status: 'opened',
-        opened_at: invite.opened_at || new Date().toISOString(),
+        status: attempt?.status === 'in_progress' ? 'started' : 'opened',
+        opened_at: new Date().toISOString(),
       })
       .eq('id', invite.id)
-    await admin.from('participants').update({ status: 'opened' }).eq('id', participant.id)
+    await admin
+      .from('participants')
+      .update({
+        status: attempt?.status === 'in_progress' ? 'in_progress' : 'opened',
+      })
+      .eq('id', participant.id)
   }
 
   return NextResponse.json({
     participant: {
       firstName: participant.first_name,
+      lastName: participant.last_name,
       fullName: participant.full_name,
       hotel: participant.hotel,
+      service: participant.department,
     },
     invite: {
       status: isExpired ? 'expired' : invite.status,

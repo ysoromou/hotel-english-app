@@ -15,13 +15,14 @@ export function buildInviteMessage({
   const lines = [
     `Bonjour ${participant.first_name},`,
     '',
-    `Vous etes invite(e) a passer votre test de positionnement en anglais pour ${participant.hotel}.`,
+    'Voici votre lien personnel pour le test de positionnement en anglais CAFORMAC :',
+    accessUrl,
+    '',
     `Duree estimee : ${POSITIONING_DURATION_MINUTES} minutes.`,
-    deadlineLabel ? `Merci de le completer avant le ${deadlineLabel}.` : null,
+    deadlineLabel ? `Merci de faire le test avant le ${deadlineLabel}.` : null,
+    'Merci de faire le test sur telephone, dans un endroit calme.',
     '',
-    `Votre lien personnel : ${accessUrl}`,
-    '',
-    'Merci de cliquer directement sur ce lien depuis votre telephone.',
+    `${participant.hotel} - lien strictement personnel.`,
   ].filter(Boolean)
 
   return lines.join('\n')

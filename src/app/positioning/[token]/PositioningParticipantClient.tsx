@@ -5,8 +5,10 @@ import { useEffect, useMemo, useState } from 'react'
 type PublicPayload = {
   participant?: {
     firstName: string
+    lastName?: string
     fullName: string
     hotel: string
+    service?: string | null
   }
   invite?: {
     status: string
@@ -42,7 +44,7 @@ const SECTION_LABELS = {
   vocabulary: 'Vocabulaire metier',
 } as const
 
-const DEFAULT_DURATION_MINUTES = 18
+const DEFAULT_DURATION_MINUTES = 45
 const DEFAULT_DURATION_SECONDS = DEFAULT_DURATION_MINUTES * 60
 
 export default function PositioningParticipantClient({ token }: { token: string }) {
@@ -249,6 +251,7 @@ export default function PositioningParticipantClient({ token }: { token: string 
         </p>
         <div className="mt-6 rounded-3xl bg-gray-50 p-4 text-left text-sm text-gray-600 ring-1 ring-gray-100">
           <p className="font-semibold text-gray-900">{payload.participant.hotel}</p>
+          {payload.participant.service ? <p className="mt-1">{payload.participant.service}</p> : null}
           <p className="mt-1">Votre passation est complete. Les resultats seront revus par l'equipe CAFORMAC.</p>
           <p className="mt-1">Vous pouvez maintenant fermer cette page.</p>
         </div>
@@ -263,7 +266,10 @@ export default function PositioningParticipantClient({ token }: { token: string 
           Test de positionnement
         </p>
         <h1 className="mt-2 text-3xl font-bold text-gray-900">{payload.participant.fullName}</h1>
-        <p className="mt-2 text-sm text-gray-500">{payload.participant.hotel}</p>
+        <p className="mt-2 text-sm text-gray-500">
+          {payload.participant.hotel}
+          {payload.participant.service ? ` · ${payload.participant.service}` : ''}
+        </p>
         <div className="mt-6 rounded-3xl bg-gray-50 p-5 text-left ring-1 ring-gray-100">
           <p className="font-semibold text-gray-900">Avant de commencer</p>
           <ul className="mt-3 space-y-2 text-sm text-gray-600">

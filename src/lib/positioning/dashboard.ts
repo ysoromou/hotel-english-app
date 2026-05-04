@@ -30,6 +30,12 @@ export interface DashboardParticipantRow {
   deadlineAt: string | null
   absenceCategory: 'none' | 'not_sent' | 'non_opened' | 'non_started' | 'incomplete' | 'absent'
   sectionScores: Record<string, string>
+  latestMessageId: string | null
+  latestMessageStatus: string | null
+  latestMessageKind: string | null
+  latestMessageBody: string | null
+  latestDeliveryUrl: string | null
+  latestMessageAt: string | null
 }
 
 export interface DashboardSummary {
@@ -85,7 +91,15 @@ export function buildPositioningDashboardData({
   const inviteMap = new Map(invites.map((invite) => [invite.participant_id, invite]))
   const attemptMap = new Map(attempts.map((attempt) => [attempt.participant_id, attempt]))
   const groupMap = new Map(groupRecommendations.map((group) => [group.participant_id, group]))
+  const latestMessageMap = new Map<string, OutboundMessageRow>()
   const sectionMap = new Map<string, TestSectionResultRow[]>()
+
+  for (const message of messages) {
+    const current = latestMessageMap.get(message.participant_id)
+    if (!current || new Date(message.created_at).getTime() > new Date(current.created_at).getTime()) {
+      latestMessageMap.set(message.participant_id, message)
+    }
+  }
 
   for (const result of sectionResults) {
     const current = sectionMap.get(result.attempt_id) ?? []
@@ -98,6 +112,7 @@ export function buildPositioningDashboardData({
     const attempt = attemptMap.get(participant.id)
     const levelMeta = getLevelMeta(attempt?.estimated_level ?? null)
     const group = groupMap.get(participant.id)
+    const latestMessage = latestMessageMap.get(participant.id)
     const sectionScores = Object.fromEntries(
       (attempt ? sectionMap.get(attempt.id) ?? [] : []).map((section) => [
         section.section_key,
@@ -156,6 +171,12 @@ export function buildPositioningDashboardData({
       deadlineAt: invite?.deadline_at ?? null,
       absenceCategory,
       sectionScores,
+      latestMessageId: latestMessage?.id ?? null,
+      latestMessageStatus: latestMessage?.status ?? null,
+      latestMessageKind: latestMessage?.message_kind ?? null,
+      latestMessageBody: latestMessage?.message_body ?? null,
+      latestDeliveryUrl: getDeliveryUrl(latestMessage),
+      latestMessageAt: latestMessage?.sent_at ?? latestMessage?.created_at ?? null,
     }
   })
 
@@ -206,4 +227,10 @@ export function buildPositioningDashboardData({
     groups,
     logs,
   }
+}
+
+function getDeliveryUrl(message: OutboundMessageRow | undefined) {
+  if (!message?.provider_payload || Array.isArray(message.provider_payload)) return null
+  const value = (message.provider_payload as Record<string, unknown>).deliveryUrl
+  return typeof value === 'string' && value.length > 0 ? value : null
 }

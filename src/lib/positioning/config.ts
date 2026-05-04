@@ -1,7 +1,7 @@
 import { ImportFieldDefinition, LevelRule, PositioningSectionKey } from '@/lib/positioning/types'
 
 export const POSITIONING_TEST_VERSION = 'v1'
-export const POSITIONING_DURATION_MINUTES = 18
+export const POSITIONING_DURATION_MINUTES = 45
 export const POSITIONING_LINK_EXPIRY_HOURS = 168
 export const POSITIONING_DEFAULT_DEADLINE_DAYS = 7
 export const POSITIONING_DEFAULT_GROUP_SIZE = 8
@@ -20,7 +20,7 @@ export const POSITIONING_IMPORT_FIELDS: ImportFieldDefinition[] = [
   { key: 'full_name', label: 'Nom complet' },
   { key: 'phone', label: 'Telephone', required: true },
   { key: 'email', label: 'Email' },
-  { key: 'department', label: 'Departement / service' },
+  { key: 'department', label: 'Service' },
   { key: 'external_ref', label: 'Reference externe' },
 ]
 
