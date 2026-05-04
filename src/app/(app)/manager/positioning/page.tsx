@@ -1,6 +1,7 @@
 import { requireManagerPageAccess } from '@/lib/positioning/access'
 import { buildPositioningDashboardData } from '@/lib/positioning/dashboard'
 import { isAdminClientConfigured } from '@/lib/supabase/admin'
+import { getSmsProviderConfig } from '@/lib/positioning/sms'
 import PositioningManagerClient from './PositioningManagerClient'
 
 export default async function PositioningManagerPage() {
@@ -17,6 +18,11 @@ export default async function PositioningManagerPage() {
     runtimeNotes.push(
       'WhatsApp est en mode manuel : les liens sont prepares via wa.me et doivent etre envoyes depuis le telephone ou le poste du manager.',
     )
+  }
+
+  const smsConfig = getSmsProviderConfig()
+  if (!smsConfig.configured) {
+    runtimeNotes.push(`SMS Orange non configure : ${smsConfig.reason} Les envois reels seront bloques (export CSV possible).`)
   }
 
   const [participantsRes, invitesRes, attemptsRes, sectionsRes, messagesRes, groupsRes] = await Promise.all([
@@ -37,5 +43,12 @@ export default async function PositioningManagerPage() {
     groupRecommendations: groupsRes.data || [],
   })
 
-  return <PositioningManagerClient initialDashboard={dashboard} runtimeNotes={runtimeNotes} />
+  return (
+    <PositioningManagerClient
+      initialDashboard={dashboard}
+      runtimeNotes={runtimeNotes}
+      smsConfigured={smsConfig.configured}
+      smsProviderReason={smsConfig.reason || null}
+    />
+  )
 }

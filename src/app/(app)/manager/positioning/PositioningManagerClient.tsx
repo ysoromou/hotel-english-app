@@ -7,13 +7,40 @@ import { POSITIONING_IMPORT_FIELDS } from '@/lib/positioning/config'
 import { PositioningDashboardData } from '@/lib/positioning/dashboard'
 import { ImportPreviewRow } from '@/lib/positioning/types'
 
-type ManagerTab = 'overview' | 'import' | 'followup' | 'exports'
+type ManagerTab = 'overview' | 'import' | 'followup' | 'sms' | 'exports'
 type DashboardRow = PositioningDashboardData['rows'][number]
 type SendMode = 'send_all' | 'resend_non_started' | 'resend_incomplete' | 'send_selected' | 'mark_sent'
+type SmsAction = 'test_single' | 'initial' | 'reminder_1' | 'reminder_2' | 'export_csv'
+
+const SMS_TEST_NUMBER_DISPLAY = '2250797660543'
 
 interface PositioningManagerClientProps {
   initialDashboard: PositioningDashboardData
   runtimeNotes: string[]
+  smsConfigured: boolean
+  smsProviderReason: string | null
+}
+
+interface SmsTestResult {
+  status: string
+  destination: string
+  errorMessage?: string
+  messageBody?: string
+  provider?: string
+}
+
+interface SmsRunResult {
+  action: SmsAction
+  targetedCount: number
+  sentCount: number
+  failedCount: number
+  results: Array<{
+    participantId: string
+    fullName: string
+    destination: string
+    status: string
+    errorMessage?: string
+  }>
 }
 
 interface ImportPreviewPayload {
@@ -142,6 +169,8 @@ function getMarkLabel(row: DashboardRow) {
 export default function PositioningManagerClient({
   initialDashboard,
   runtimeNotes,
+  smsConfigured,
+  smsProviderReason,
 }: PositioningManagerClientProps) {
   const router = useRouter()
   const [activeTab, setActiveTab] = useState<ManagerTab>('overview')
@@ -161,6 +190,12 @@ export default function PositioningManagerClient({
   const [dispatchBusy, setDispatchBusy] = useState(false)
   const [dispatchResults, setDispatchResults] = useState<DispatchResult[]>([])
   const [recalcBusy, setRecalcBusy] = useState(false)
+
+  const [smsBusy, setSmsBusy] = useState<SmsAction | null>(null)
+  const [smsTestResult, setSmsTestResult] = useState<SmsTestResult | null>(null)
+  const [smsRunResult, setSmsRunResult] = useState<SmsRunResult | null>(null)
+  const [smsError, setSmsError] = useState<string | null>(null)
+  const [smsTestPassed, setSmsTestPassed] = useState(false)
 
   const rows = initialDashboard.rows
   const hasParticipants = rows.length > 0
@@ -336,6 +371,67 @@ export default function PositioningManagerClient({
     await navigator.clipboard.writeText(value)
   }
 
+  async function runSmsAction(action: SmsAction, opts?: { skipConfirm?: boolean }) {
+    if (!opts?.skipConfirm && action !== 'test_single' && action !== 'export_csv') {
+      const targetCount =
+        action === 'initial' ? smsInitialCount : action === 'reminder_1' ? smsReminderCount : smsReminderCount
+      const ok = window.confirm(
+        `Confirmer l'envoi SMS reel a ${targetCount} destinataire(s) (${action}) ? Cette action est irreversible.`,
+      )
+      if (!ok) return
+    }
+    setSmsBusy(action)
+    setSmsError(null)
+    try {
+      const response = await fetch('/api/positioning/sms/send', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action,
+          deadlineAt: deadlineAt ? new Date(deadlineAt).toISOString() : null,
+        }),
+      })
+
+      if (action === 'export_csv') {
+        if (!response.ok) {
+          const payload = await response.json().catch(() => ({}))
+          throw new Error(payload.error || `Echec export (${response.status}).`)
+        }
+        const blob = await response.blob()
+        const url = URL.createObjectURL(blob)
+        const a = document.createElement('a')
+        a.href = url
+        a.download = `positioning_sms_${Date.now()}.csv`
+        document.body.appendChild(a)
+        a.click()
+        a.remove()
+        URL.revokeObjectURL(url)
+        return
+      }
+
+      const payload = await response.json()
+      if (!response.ok) throw new Error(payload.error || 'Echec envoi SMS.')
+
+      if (action === 'test_single') {
+        setSmsTestResult({
+          status: payload.status,
+          destination: payload.destination,
+          errorMessage: payload.errorMessage,
+          messageBody: payload.messageBody,
+          provider: payload.provider,
+        })
+        if (payload.status === 'sent') setSmsTestPassed(true)
+      } else {
+        setSmsRunResult(payload as SmsRunResult)
+        router.refresh()
+      }
+    } catch (error) {
+      setSmsError(error instanceof Error ? error.message : 'Erreur inconnue.')
+    } finally {
+      setSmsBusy(null)
+    }
+  }
+
   const countNotSent = rows.filter((row) => row.inviteStatus === 'not_sent').length
   const countOpened = rows.filter((row) => row.inviteStatus === 'opened' || Boolean(row.openedAt)).length
   const countStarted = rows.filter((row) => row.attemptStatus === 'in_progress' || Boolean(row.startedAt)).length
@@ -343,6 +439,24 @@ export default function PositioningManagerClient({
   const countNonStarted = rows.filter((row) => row.absenceCategory === 'non_started').length
   const countIncomplete = rows.filter((row) => row.absenceCategory === 'incomplete').length
   const countAbsents = rows.filter((row) => row.absenceCategory === 'absent').length
+
+  const isValidSmsPhone = (raw: string | null | undefined) =>
+    typeof raw === 'string' && raw.replace(/\D+/g, '').length >= 10
+  const validPhones = rows.filter((row) => isValidSmsPhone(row.phone)).length
+  const invalidPhones = rows.length - validPhones
+  const smsInitialCount = rows.filter(
+    (row) =>
+      isValidSmsPhone(row.phone) &&
+      row.attemptStatus !== 'completed' &&
+      (row.inviteStatus === 'not_sent' || row.absenceCategory === 'not_sent'),
+  ).length
+  const smsReminderCount = rows.filter(
+    (row) => isValidSmsPhone(row.phone) && row.attemptStatus !== 'completed',
+  ).length
+  const smsLogs = initialDashboard.logs.filter((log) => log.channel === 'sms')
+  const smsSentCount = smsLogs.filter((log) => log.status === 'sent').length
+  const smsFailedCount = smsLogs.filter((log) => log.status === 'failed').length
+  const lastSmsAt = smsLogs[0]?.created_at ?? null
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-6">
@@ -399,6 +513,9 @@ export default function PositioningManagerClient({
         </TabButton>
         <TabButton active={activeTab === 'followup'} onClick={() => setActiveTab('followup')}>
           Relances WhatsApp
+        </TabButton>
+        <TabButton active={activeTab === 'sms'} onClick={() => setActiveTab('sms')}>
+          SMS Orange
         </TabButton>
         <TabButton active={activeTab === 'exports'} onClick={() => setActiveTab('exports')}>
           Exports et journal
@@ -1045,6 +1162,194 @@ export default function PositioningManagerClient({
         </div>
       )}
 
+      {activeTab === 'sms' && (
+        <div className="mt-5 grid gap-5 xl:grid-cols-[minmax(0,1.2fr)_minmax(340px,1fr)]">
+          <section className="rounded-3xl border border-gray-200 bg-white p-5 shadow-sm">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <h2 className="text-lg font-semibold text-gray-900">SMS Orange</h2>
+                <p className="mt-1 text-sm text-gray-500">
+                  Envoi des liens personnels par SMS Orange. Les messages utilisent les memes
+                  participants et invitations que la file WhatsApp.
+                </p>
+              </div>
+              <span
+                className={`rounded-full px-3 py-1 text-xs font-semibold ${
+                  smsConfigured
+                    ? 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200'
+                    : 'bg-amber-50 text-amber-700 ring-1 ring-amber-200'
+                }`}
+              >
+                {smsConfigured ? 'Provider Orange configure' : 'Provider non configure'}
+              </span>
+            </div>
+
+            {!smsConfigured && smsProviderReason ? (
+              <p className="mt-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs text-amber-800">
+                {smsProviderReason} L&apos;envoi reel est bloque. L&apos;export CSV reste disponible.
+              </p>
+            ) : null}
+
+            {!smsTestPassed && smsConfigured ? (
+              <p className="mt-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs text-amber-800">
+                Avant tout envoi reel, declenchez le SMS test vers {SMS_TEST_NUMBER_DISPLAY} et
+                verifiez sa reception. Les boutons d&apos;envoi reel sont desactives tant que ce
+                test n&apos;a pas reussi.
+              </p>
+            ) : null}
+
+            <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+              <SummaryCard label="Participants" value={initialDashboard.summary.totalParticipants} />
+              <SummaryCard label="Numeros valides" value={validPhones} />
+              <SummaryCard label="Numeros invalides" value={invalidPhones} />
+              <SummaryCard label="A relancer" value={smsReminderCount} />
+              <SummaryCard label="A envoyer (initial)" value={smsInitialCount} />
+              <SummaryCard label="SMS envoyes" value={smsSentCount} />
+              <SummaryCard label="SMS en echec" value={smsFailedCount} />
+              <SummaryCard label="Termines" value={initialDashboard.summary.totalCompleted} />
+            </div>
+
+            <p className="mt-4 text-xs text-gray-500">
+              Dernier SMS journalise : {formatDateTime(lastSmsAt)}
+            </p>
+
+            <label className="mt-4 flex flex-col gap-2 text-sm text-gray-600">
+              <span>Date limite affichee dans le message</span>
+              <input
+                type="date"
+                value={deadlineAt}
+                onChange={(event) => setDeadlineAt(event.target.value)}
+                className="rounded-2xl border border-gray-200 px-4 py-3 outline-none focus:border-emerald-500"
+              />
+            </label>
+
+            <div className="mt-4 grid gap-3 md:grid-cols-2">
+              <SmsActionCard
+                title="Envoyer un SMS test"
+                description={`Envoi unique vers ${SMS_TEST_NUMBER_DISPLAY}. Aucun salarie touche.`}
+                buttonLabel={smsBusy === 'test_single' ? 'Envoi...' : 'Envoyer test Orange'}
+                disabled={!smsConfigured || smsBusy !== null}
+                onClick={() => runSmsAction('test_single', { skipConfirm: true })}
+                tone="emerald"
+              />
+              <SmsActionCard
+                title="Export CSV phone,message"
+                description="Genere un CSV (initial + relances) pour envoi externe. Fonctionne meme sans Orange."
+                buttonLabel={smsBusy === 'export_csv' ? 'Export...' : 'Telecharger CSV'}
+                disabled={!hasParticipants || smsBusy !== null}
+                onClick={() => runSmsAction('export_csv', { skipConfirm: true })}
+                tone="gray"
+              />
+              <SmsActionCard
+                title="SMS initial"
+                description={`${smsInitialCount} participant(s) eligible(s) (non envoyes, numero valide).`}
+                buttonLabel={smsBusy === 'initial' ? 'Envoi...' : 'Envoyer SMS initial'}
+                disabled={
+                  !smsConfigured || !smsTestPassed || smsBusy !== null || smsInitialCount === 0
+                }
+                onClick={() => runSmsAction('initial')}
+                tone="emerald"
+              />
+              <SmsActionCard
+                title="Relance J+2"
+                description={`${smsReminderCount} participant(s) non termine(s) avec numero valide.`}
+                buttonLabel={smsBusy === 'reminder_1' ? 'Envoi...' : 'Envoyer relance J+2'}
+                disabled={
+                  !smsConfigured || !smsTestPassed || smsBusy !== null || smsReminderCount === 0
+                }
+                onClick={() => runSmsAction('reminder_1')}
+                tone="amber"
+              />
+              <SmsActionCard
+                title="Derniere relance J+3"
+                description={`${smsReminderCount} participant(s) non termine(s) avec numero valide.`}
+                buttonLabel={smsBusy === 'reminder_2' ? 'Envoi...' : 'Envoyer derniere relance'}
+                disabled={
+                  !smsConfigured || !smsTestPassed || smsBusy !== null || smsReminderCount === 0
+                }
+                onClick={() => runSmsAction('reminder_2')}
+                tone="amber"
+              />
+            </div>
+
+            {smsError ? (
+              <p className="mt-4 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+                {smsError}
+              </p>
+            ) : null}
+
+            {smsTestResult ? (
+              <div
+                className={`mt-4 rounded-2xl px-4 py-3 text-sm ${
+                  smsTestResult.status === 'sent'
+                    ? 'border border-emerald-200 bg-emerald-50 text-emerald-800'
+                    : 'border border-rose-200 bg-rose-50 text-rose-700'
+                }`}
+              >
+                <p className="font-semibold">
+                  SMS test : {smsTestResult.status} ({smsTestResult.destination})
+                </p>
+                {smsTestResult.errorMessage ? (
+                  <p className="mt-1">Erreur : {smsTestResult.errorMessage}</p>
+                ) : null}
+                {smsTestResult.messageBody ? (
+                  <pre className="mt-2 whitespace-pre-wrap font-mono text-xs">
+                    {smsTestResult.messageBody}
+                  </pre>
+                ) : null}
+              </div>
+            ) : null}
+
+            {smsRunResult ? (
+              <div className="mt-4 rounded-2xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm">
+                <p className="font-semibold text-gray-900">
+                  Derniere campagne ({smsRunResult.action}) : {smsRunResult.sentCount}/
+                  {smsRunResult.targetedCount} envoye(s), {smsRunResult.failedCount} echec(s).
+                </p>
+                {smsRunResult.results.length > 0 ? (
+                  <ul className="mt-2 space-y-1 text-xs text-gray-700">
+                    {smsRunResult.results.slice(0, 20).map((result) => (
+                      <li key={result.participantId}>
+                        {result.fullName} ({result.destination}) - {result.status}
+                        {result.errorMessage ? ` - ${result.errorMessage}` : ''}
+                      </li>
+                    ))}
+                  </ul>
+                ) : null}
+              </div>
+            ) : null}
+          </section>
+
+          <aside className="rounded-3xl border border-gray-200 bg-white p-5 shadow-sm">
+            <h2 className="text-lg font-semibold text-gray-900">Journal SMS</h2>
+            {smsLogs.length === 0 ? (
+              <p className="mt-3 text-sm text-gray-500">Aucun SMS journalise pour le moment.</p>
+            ) : (
+              <div className="mt-3 space-y-3">
+                {smsLogs.slice(0, 20).map((log) => (
+                  <div
+                    key={log.id}
+                    className="rounded-2xl border border-gray-100 bg-gray-50 p-3 text-sm"
+                  >
+                    <div className="flex items-center justify-between gap-3">
+                      <p className="font-medium text-gray-900">{log.message_kind}</p>
+                      <StatusBadge label={formatInviteStatus(log.status)} />
+                    </div>
+                    <p className="mt-1 text-xs text-gray-500">{log.destination}</p>
+                    {log.error_message ? (
+                      <p className="mt-1 text-xs text-rose-600">{log.error_message}</p>
+                    ) : null}
+                    <p className="mt-2 text-xs text-gray-500">
+                      {new Date(log.created_at).toLocaleString('fr-FR')}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            )}
+          </aside>
+        </div>
+      )}
+
       {activeTab === 'exports' && (
         <div className="mt-5 grid gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
           <section className="rounded-3xl border border-gray-200 bg-white p-5 shadow-sm">
@@ -1238,6 +1543,43 @@ function ActionCard({
       <p className="mt-1 text-sm text-gray-500">{description}</p>
       <p className="mt-3 text-2xl font-bold text-emerald-700">{count}</p>
     </button>
+  )
+}
+
+function SmsActionCard({
+  title,
+  description,
+  buttonLabel,
+  onClick,
+  disabled,
+  tone,
+}: {
+  title: string
+  description: string
+  buttonLabel: string
+  onClick: () => void
+  disabled: boolean
+  tone: 'emerald' | 'amber' | 'gray'
+}) {
+  const toneClass =
+    tone === 'emerald'
+      ? 'bg-emerald-600 hover:bg-emerald-700 text-white'
+      : tone === 'amber'
+        ? 'bg-amber-600 hover:bg-amber-700 text-white'
+        : 'bg-gray-800 hover:bg-gray-900 text-white'
+  return (
+    <div className="flex flex-col rounded-2xl border border-gray-100 bg-gray-50 p-4">
+      <p className="text-base font-semibold text-gray-900">{title}</p>
+      <p className="mt-1 text-sm text-gray-500">{description}</p>
+      <button
+        type="button"
+        onClick={onClick}
+        disabled={disabled}
+        className={`mt-3 self-start rounded-full px-4 py-2 text-xs font-semibold shadow-sm disabled:opacity-50 ${toneClass}`}
+      >
+        {buttonLabel}
+      </button>
+    </div>
   )
 }
 
