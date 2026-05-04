@@ -9,7 +9,7 @@ import {
   TestProductionRow,
   TestSectionResultRow,
 } from '@/lib/positioning/types'
-import { buildRecommendedGroupLabel, getLevelMeta } from '@/lib/positioning/scoring'
+import { deriveAttemptScoreSummary } from '@/lib/positioning/scoring'
 import {
   getPositioningProductions,
   getPositioningQuestions,
@@ -125,6 +125,15 @@ function competenceLabels(ids: CompetenceId[] | null): string[] {
   return ids.map((id) => COMPETENCE_LABELS[id] || id)
 }
 
+function requiresTrainerReview(status: PositioningAiStatus | null | undefined) {
+  return (
+    status === 'needs_trainer_review' ||
+    status === 'missing_answer' ||
+    status === 'audio_unusable' ||
+    status === 'ai_error'
+  )
+}
+
 export function buildPositioningDashboardData({
   participants,
   invites,
@@ -172,7 +181,6 @@ export function buildPositioningDashboardData({
   const rows: DashboardParticipantRow[] = participants.map((participant) => {
     const invite = inviteMap.get(participant.id)
     const attempt = attemptMap.get(participant.id)
-    const levelMeta = getLevelMeta(attempt?.estimated_level ?? null)
     const group = groupMap.get(participant.id)
     const latestMessage = latestMessageMap.get(participant.id)
     const sectionRows = attempt ? sectionMap.get(attempt.id) ?? [] : []
@@ -230,6 +238,17 @@ export function buildPositioningDashboardData({
       responsePreview: (row.transcription || row.response_text || '').slice(0, 240) || null,
       hasAudio: row.has_audio,
     }))
+    const scoreSummary = attempt
+      ? deriveAttemptScoreSummary({
+          totalScore: attempt.total_score,
+          provisionalScore: attempt.provisional_score,
+          autoScore: attempt.auto_score,
+          writingScore: attempt.writing_score,
+          speakingScore: attempt.speaking_score,
+          estimatedLevel: attempt.estimated_level,
+          recommendedGroup: attempt.recommended_group,
+        })
+      : null
 
     const hasOpened = Boolean(invite?.opened_at)
     const hasStarted = Boolean(attempt?.started_at || invite?.started_at)
@@ -260,8 +279,8 @@ export function buildPositioningDashboardData({
     const aiStatus = (attempt?.ai_status as PositioningAiStatus | null) ?? null
     const needsTrainerReview =
       attempt?.status === 'completed'
-        ? aiStatus !== 'ia_validated' ||
-          attemptProductions.some((p) => p.ai_status !== 'ia_validated')
+        ? requiresTrainerReview(aiStatus) ||
+          attemptProductions.some((production) => requiresTrainerReview(production.ai_status))
         : false
 
     return {
@@ -278,19 +297,16 @@ export function buildPositioningDashboardData({
       openedAt: invite?.opened_at ?? null,
       startedAt: attempt?.started_at ?? invite?.started_at ?? null,
       completedAt: attempt?.completed_at ?? invite?.completed_at ?? null,
-      totalScore: attempt?.total_score ?? null,
+      totalScore: scoreSummary?.totalScore ?? null,
       autoScore: attempt?.auto_score ?? null,
       writingScore: attempt?.writing_score ?? null,
       speakingScore: attempt?.speaking_score ?? null,
-      provisionalScore: attempt?.provisional_score ?? null,
+      provisionalScore: scoreSummary?.provisionalScore ?? null,
       aiStatus,
       needsTrainerReview,
-      level: attempt?.estimated_level ?? null,
-      levelLabel: attempt?.estimated_level ? levelMeta.label : null,
-      recommendedGroup:
-        group?.recommended_group ??
-        attempt?.recommended_group ??
-        (attempt?.estimated_level ? buildRecommendedGroupLabel(attempt.estimated_level, 0, 1) : null),
+      level: scoreSummary?.level ?? null,
+      levelLabel: scoreSummary?.levelLabel ?? null,
+      recommendedGroup: group?.recommended_group ?? scoreSummary?.recommendedGroup ?? null,
       durationSeconds: attempt?.duration_seconds ?? null,
       deadlineAt: invite?.deadline_at ?? null,
       absenceCategory,

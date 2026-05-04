@@ -14,6 +14,7 @@ import {
   getPositioningQuestions,
 } from '@/lib/positioning/questions'
 import {
+  canComputeProvisionalScore,
   computeAttemptResult,
   computeProvisionalScore,
   deriveCompetenceVerdict,
@@ -22,7 +23,6 @@ import {
 import {
   aggregateProductionScores,
   evaluateProduction,
-  isAiConfigured,
 } from '@/lib/positioning/ai-evaluation'
 import {
   AttemptProductionDraft,
@@ -459,6 +459,7 @@ export async function POST(request: NextRequest, { params }: { params: { token: 
       productionRows.map((row) => ({
         kind: row.kind,
         ai_score: row.ai_score,
+        trainer_score: row.trainer_score,
         ai_status: row.ai_status,
         ai_competences: row.ai_competences,
         ai_level: row.ai_level,
@@ -476,31 +477,27 @@ export async function POST(request: NextRequest, { params }: { params: { token: 
       weak: aggregate.weakFromProductions,
     })
 
-    const aiStatus =
-      !isAiConfigured()
-        ? 'needs_trainer_review'
-        : aggregate.needsReview
-          ? 'needs_trainer_review'
-          : 'ia_validated'
-
-    // Si writing/speaking ne sont pas evalues par l'IA, on refuse de produire
-    // un niveau / score global definitif a partir du seul score auto QCM.
-    // Le score auto reste visible RH, mais le niveau et le groupe sont marques
-    // a confirmer pour eviter d'afficher un faux 100 %.
-    const aiFullyValidated =
-      aiStatus === 'ia_validated' &&
-      aggregate.writingScore !== null &&
-      aggregate.speakingScore !== null
-    const finalProvisionalScore = aiFullyValidated ? provisional.provisional : null
-    const finalTotalScore = aiFullyValidated ? provisional.provisional : null
-    const finalLevel = aiFullyValidated ? provisional.level : null
-    const finalGroup = aiFullyValidated ? provisional.recommendedGroupBase : null
-    const provisionalAnomalies = aiFullyValidated
+    const aiStatus = aggregate.overallStatus
+    const hasCompleteConsolidation = canComputeProvisionalScore({
+      autoScore: result.autoScore,
+      writingScore: aggregate.writingScore,
+      speakingScore: aggregate.speakingScore,
+    })
+    const finalProvisionalScore = hasCompleteConsolidation ? provisional.provisional : null
+    const finalTotalScore = hasCompleteConsolidation ? provisional.provisional : null
+    const finalLevel = hasCompleteConsolidation ? provisional.level : null
+    const finalGroup = hasCompleteConsolidation ? provisional.recommendedGroupBase : null
+    const blockingReason =
+      aiStatus === 'missing_answer'
+        ? 'Score provisoire incomplet : au moins une reponse writing/speaking est manquante.'
+        : aiStatus === 'audio_unusable'
+          ? 'Score provisoire incomplet : au moins un audio oral est inexploitable sans transcription.'
+          : aiStatus === 'ai_error'
+            ? 'Score provisoire incomplet : evaluation IA indisponible ou reponse JSON inexploitable.'
+            : 'Score provisoire incomplet : evaluation writing/speaking manquante.'
+    const provisionalAnomalies = hasCompleteConsolidation
       ? result.anomalies
-      : [
-          ...result.anomalies,
-          'Score provisoire incomplet : evaluation IA writing/speaking manquante. Niveau et groupe a confirmer par le formateur.',
-        ]
+      : [...result.anomalies, blockingReason]
 
     await admin
       .from('test_attempts')

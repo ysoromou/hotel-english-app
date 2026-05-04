@@ -4,8 +4,9 @@
 
 import { seededShuffle } from './lib/positioning/utils'
 import { getPositioningQuestions, getPositioningProductions } from './lib/positioning/questions'
-import { computeAttemptResult, serializeQuestionBank } from './lib/positioning/scoring'
+import { aggregateProductionScores } from './lib/positioning/ai-evaluation'
 import { buildPositioningDashboardData } from './lib/positioning/dashboard'
+import { computeAttemptResult, serializeQuestionBank } from './lib/positioning/scoring'
 
 let passed = 0
 let failed = 0
@@ -218,6 +219,186 @@ check('Dashboard sectionDetails.reading = {7,8}', row.sectionDetails.reading?.sc
 check('Dashboard sectionDetails.situations = {7,8}', row.sectionDetails.situations?.score === 7 && row.sectionDetails.situations?.max === 8)
 check('Dashboard sectionScores.reading conserve format `7/8`', row.sectionScores.reading === '7/8')
 check('Dashboard hasAnomalies true quand anomalies', row.hasAnomalies === true)
+
+console.log('\n--- Positioning: consolidation candidat faible ---')
+const weakAggregate = aggregateProductionScores([
+  {
+    kind: 'writing',
+    ai_score: 15,
+    ai_status: 'ia_validated',
+    ai_competences: ['accueillir_client'],
+    ai_level: 'A1',
+  },
+  {
+    kind: 'writing',
+    ai_score: 0,
+    ai_status: 'needs_trainer_review',
+    ai_competences: ['accueillir_client'],
+    ai_level: 'A1',
+  },
+  {
+    kind: 'writing',
+    ai_score: 0,
+    ai_status: 'needs_trainer_review',
+    ai_competences: ['gerer_reclamation'],
+    ai_level: 'A1',
+  },
+  {
+    kind: 'writing',
+    ai_score: 0,
+    ai_status: 'ia_validated',
+    ai_competences: ['gerer_reclamation'],
+    ai_level: 'A1',
+  },
+  {
+    kind: 'speaking',
+    ai_score: 15,
+    ai_status: 'ia_validated',
+    ai_competences: ['accueillir_client'],
+    ai_level: 'A1',
+  },
+  {
+    kind: 'speaking',
+    ai_score: 10,
+    ai_status: 'ia_validated',
+    ai_competences: ['gerer_reclamation'],
+    ai_level: 'A1',
+  },
+])
+
+const weakDashboard = buildPositioningDashboardData({
+  participants: [
+    {
+      id: 'participant-weak',
+      hotel: 'Hotel Test',
+      organization: 'NOOM',
+      first_name: 'Alex',
+      last_name: 'Faible',
+      full_name: 'Alex Faible',
+      phone: '+2250700000000',
+      normalized_phone: '+2250700000000',
+      email: 'alex@example.com',
+      department: 'Reception',
+      external_ref: null,
+      status: 'completed',
+      created_at: '2026-05-04T10:00:00.000Z',
+      updated_at: '2026-05-04T10:00:00.000Z',
+    },
+  ],
+  invites: [
+    {
+      id: 'invite-weak',
+      participant_id: 'participant-weak',
+      token_hash: 'token',
+      expires_at: null,
+      deadline_at: null,
+      status: 'completed',
+      sent_at: '2026-05-04T10:00:00.000Z',
+      opened_at: '2026-05-04T10:05:00.000Z',
+      started_at: '2026-05-04T10:06:00.000Z',
+      completed_at: '2026-05-04T10:40:00.000Z',
+      last_reminder_at: null,
+      access_version: 1,
+      created_at: '2026-05-04T10:00:00.000Z',
+      updated_at: '2026-05-04T10:40:00.000Z',
+    },
+  ],
+  attempts: [
+    {
+      id: 'attempt-weak',
+      participant_id: 'participant-weak',
+      invite_id: 'invite-weak',
+      status: 'completed',
+      started_at: '2026-05-04T10:06:00.000Z',
+      submitted_at: '2026-05-04T10:40:00.000Z',
+      completed_at: '2026-05-04T10:40:00.000Z',
+      total_score: null,
+      estimated_level: null,
+      recommended_group: null,
+      duration_seconds: 2040,
+      device_info: null,
+      anomalies_json: [],
+      raw_result_json: {},
+      auto_score: 25,
+      writing_score: weakAggregate.writingScore,
+      speaking_score: weakAggregate.speakingScore,
+      provisional_score: null,
+      ai_status: weakAggregate.overallStatus,
+      strong_competences: [],
+      weak_competences: weakAggregate.weakFromProductions,
+      created_at: '2026-05-04T10:06:00.000Z',
+      updated_at: '2026-05-04T10:40:00.000Z',
+    },
+  ],
+  sectionResults: [],
+  messages: [],
+  groupRecommendations: [],
+  productions: [
+    {
+      id: 'prod-w1',
+      attempt_id: 'attempt-weak',
+      participant_id: 'participant-weak',
+      prompt_id: 'writing-1',
+      kind: 'writing',
+      response_text: 'Short response',
+      transcription: null,
+      has_audio: false,
+      ai_score: 15,
+      ai_level: 'A1',
+      ai_competences: ['accueillir_client'],
+      ai_errors: [],
+      ai_justification: 'Faible mais exploitable.',
+      ai_confidence: 'high',
+      ai_status: 'ia_validated',
+      trainer_score: null,
+      trainer_note: null,
+      raw_ai_response: null,
+      created_at: '2026-05-04T10:20:00.000Z',
+      updated_at: '2026-05-04T10:20:00.000Z',
+    },
+    {
+      id: 'prod-w2',
+      attempt_id: 'attempt-weak',
+      participant_id: 'participant-weak',
+      prompt_id: 'writing-2',
+      kind: 'writing',
+      response_text: 'Very weak',
+      transcription: null,
+      has_audio: false,
+      ai_score: 0,
+      ai_level: 'A1',
+      ai_competences: ['gerer_reclamation'],
+      ai_errors: ['Peu de contenu'],
+      ai_justification: 'A revoir.',
+      ai_confidence: 'low',
+      ai_status: 'needs_trainer_review',
+      trainer_score: null,
+      trainer_note: null,
+      raw_ai_response: null,
+      created_at: '2026-05-04T10:21:00.000Z',
+      updated_at: '2026-05-04T10:21:00.000Z',
+    },
+  ],
+})
+
+const weakRow = weakDashboard.rows[0]
+check('Writing faible agrege = 4', weakAggregate.writingScore === 4, `vu: ${weakAggregate.writingScore}`)
+check('Speaking faible agrege = 13', weakAggregate.speakingScore === 13, `vu: ${weakAggregate.speakingScore}`)
+check(
+  'Statut IA global = needs_trainer_review si score numerique + low confidence',
+  weakAggregate.overallStatus === 'needs_trainer_review',
+  `vu: ${weakAggregate.overallStatus}`,
+)
+check('Score global provisoire calcule', weakRow.totalScore !== null, `vu: ${weakRow.totalScore}`)
+check('Provisional score non null', weakRow.provisionalScore !== null, `vu: ${weakRow.provisionalScore}`)
+check('Niveau derive = A1', weakRow.level === 'A1', `vu: ${weakRow.level}`)
+check(
+  'Groupe recommande derive',
+  typeof weakRow.recommendedGroup === 'string' && weakRow.recommendedGroup.length > 0,
+  `vu: ${weakRow.recommendedGroup}`,
+)
+check('Le dashboard conserve le statut a revoir formateur', weakRow.aiStatus === 'needs_trainer_review')
+check('Le dashboard marque bien la revue formateur', weakRow.needsTrainerReview === true)
 
 console.log(`\n=== Resultats: ${passed} OK, ${failed} KO ===`)
 if (failed > 0) {

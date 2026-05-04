@@ -22,6 +22,7 @@ export type PositioningAiStatus =
   | 'trainer_corrected'
   | 'audio_unusable'
   | 'missing_answer'
+  | 'ai_error'
 
 export interface PositioningQuestionOption {
   id: string

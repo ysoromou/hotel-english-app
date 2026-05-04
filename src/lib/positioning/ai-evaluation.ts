@@ -214,14 +214,14 @@ export async function evaluateProduction(input: AiEvaluationInput): Promise<AiEv
   if (POSITIONING_AI_PROVIDER !== 'openrouter') {
     return fallbackEvaluation(
       `Provider IA non supporte: ${POSITIONING_AI_PROVIDER}.`,
-      'needs_trainer_review',
+      'ai_error',
     )
   }
 
   if (!isAiConfigured()) {
     return fallbackEvaluation(
       'OPENROUTER_API_KEY absent: evaluation manuelle requise.',
-      'needs_trainer_review',
+      'ai_error',
     )
   }
 
@@ -251,9 +251,11 @@ export async function evaluateProduction(input: AiEvaluationInput): Promise<AiEv
       const confidence = normalizeConfidence(parsed.ai_confidence)
 
       const status: PositioningAiStatus =
-        score !== null && confidence && confidence !== 'low'
-          ? 'ia_validated'
-          : 'needs_trainer_review'
+        score === null
+          ? 'ai_error'
+          : confidence && confidence !== 'low'
+            ? 'ia_validated'
+            : 'needs_trainer_review'
 
       return {
         ai_score: score,
@@ -272,41 +274,78 @@ export async function evaluateProduction(input: AiEvaluationInput): Promise<AiEv
 
   return fallbackEvaluation(
     `Evaluation IA indisponible: ${lastError?.message || 'erreur inconnue'}.`,
-    'needs_trainer_review',
+    'ai_error',
   )
 }
 
 export function aggregateProductionScores(productions: Array<{
   kind: 'writing' | 'speaking'
   ai_score: number | null
+  trainer_score?: number | null
   ai_status: PositioningAiStatus
   ai_competences: CompetenceId[] | null
   ai_level: string | null
 }>) {
-  const writingScores = productions.filter((p) => p.kind === 'writing' && typeof p.ai_score === 'number')
-  const speakingScores = productions.filter((p) => p.kind === 'speaking' && typeof p.ai_score === 'number')
+  const effectiveProductions = productions.map((production) => ({
+    ...production,
+    effectiveScore:
+      typeof production.trainer_score === 'number'
+        ? production.trainer_score
+        : typeof production.ai_score === 'number'
+          ? production.ai_score
+          : null,
+  }))
+
+  const writingScores = effectiveProductions.filter(
+    (p) => p.kind === 'writing' && typeof p.effectiveScore === 'number',
+  )
+  const speakingScores = effectiveProductions.filter(
+    (p) => p.kind === 'speaking' && typeof p.effectiveScore === 'number',
+  )
 
   const writingScore = writingScores.length
-    ? Math.round(writingScores.reduce((sum, p) => sum + (p.ai_score as number), 0) / writingScores.length)
+    ? Math.round(
+        writingScores.reduce((sum, p) => sum + (p.effectiveScore as number), 0) /
+          writingScores.length,
+      )
     : null
   const speakingScore = speakingScores.length
-    ? Math.round(speakingScores.reduce((sum, p) => sum + (p.ai_score as number), 0) / speakingScores.length)
+    ? Math.round(
+        speakingScores.reduce((sum, p) => sum + (p.effectiveScore as number), 0) /
+          speakingScores.length,
+      )
     : null
 
   const strong = new Set<CompetenceId>()
   const weak = new Set<CompetenceId>()
 
-  for (const production of productions) {
-    if (typeof production.ai_score !== 'number') continue
-    const isStrong = production.ai_score >= 70
-    const isWeak = production.ai_score <= 39
+  for (const production of effectiveProductions) {
+    if (typeof production.effectiveScore !== 'number') continue
+    const isStrong = production.effectiveScore >= 70
+    const isWeak = production.effectiveScore <= 39
     for (const competence of production.ai_competences || []) {
       if (isStrong) strong.add(competence)
       if (isWeak) weak.add(competence)
     }
   }
 
-  const needsReview = productions.some((p) => p.ai_status !== 'ia_validated')
+  const hasMissingAnswer = effectiveProductions.some((p) => p.ai_status === 'missing_answer')
+  const hasAudioUnusable = effectiveProductions.some((p) => p.ai_status === 'audio_unusable')
+  const hasAiError = effectiveProductions.some((p) => p.ai_status === 'ai_error')
+  const needsReview = effectiveProductions.some((p) => p.ai_status === 'needs_trainer_review')
+  const hasTrainerCorrection = effectiveProductions.some((p) => p.ai_status === 'trainer_corrected')
+
+  const overallStatus: PositioningAiStatus = hasMissingAnswer
+    ? 'missing_answer'
+    : hasAudioUnusable
+      ? 'audio_unusable'
+      : hasAiError
+        ? 'ai_error'
+        : needsReview
+          ? 'needs_trainer_review'
+          : hasTrainerCorrection
+            ? 'trainer_corrected'
+            : 'ia_validated'
 
   return {
     writingScore,
@@ -314,5 +353,6 @@ export function aggregateProductionScores(productions: Array<{
     strongFromProductions: Array.from(strong),
     weakFromProductions: Array.from(weak),
     needsReview,
+    overallStatus,
   }
 }

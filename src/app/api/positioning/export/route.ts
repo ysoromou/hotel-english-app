@@ -13,6 +13,11 @@ function buildCsv(rows: Array<Record<string, unknown>>) {
   ].join('\n')
 }
 
+function formatLevel(level: string | null, label: string | null) {
+  if (level && label) return `${level} / ${label}`
+  return label ?? level ?? ''
+}
+
 export async function GET(request: NextRequest) {
   const { supabase, userId, allowed } = await getManagerRequestAccess()
 
@@ -67,7 +72,8 @@ export async function GET(request: NextRequest) {
     score_writing_ia: row.writingScore ?? '',
     score_speaking_ia: row.speakingScore ?? '',
     score_global: row.totalScore ?? '',
-    level: row.levelLabel ?? row.level ?? '',
+    score_global_provisoire: row.provisionalScore ?? '',
+    level: formatLevel(row.level, row.levelLabel),
     recommended_group: row.recommendedGroup ?? '',
     ai_status: row.aiStatus ?? '',
     needs_trainer_review: row.needsTrainerReview ? 'oui' : 'non',
