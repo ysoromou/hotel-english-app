@@ -1,16 +1,25 @@
 import { ImportFieldDefinition, LevelRule, PositioningSectionKey } from '@/lib/positioning/types'
 
-export const POSITIONING_TEST_VERSION = 'v1'
+export const POSITIONING_TEST_VERSION = 'v2-ai'
 export const POSITIONING_DURATION_MINUTES = 45
 export const POSITIONING_LINK_EXPIRY_HOURS = 168
 export const POSITIONING_DEFAULT_DEADLINE_DAYS = 7
 export const POSITIONING_DEFAULT_GROUP_SIZE = 8
-export const POSITIONING_SUPPORTS_SPEAKING =
-  process.env.NEXT_PUBLIC_POSITIONING_ENABLE_SPEAKING === 'true'
 
-export const POSITIONING_SECTION_ORDER: PositioningSectionKey[] = POSITIONING_SUPPORTS_SPEAKING
-  ? ['reading', 'listening', 'vocabulary', 'speaking']
-  : ['reading', 'listening', 'vocabulary']
+export const POSITIONING_SECTION_ORDER: PositioningSectionKey[] = [
+  'reading',
+  'listening',
+  'vocabulary',
+  'situations',
+]
+
+export const POSITIONING_AUTO_WEIGHT = 0.6
+export const POSITIONING_WRITING_WEIGHT = 0.2
+export const POSITIONING_SPEAKING_WEIGHT = 0.2
+
+export const POSITIONING_AI_PROVIDER = process.env.AI_PROVIDER || 'openrouter'
+export const POSITIONING_AI_MODEL = process.env.AI_MODEL || 'qwen/qwen3.5-flash'
+export const POSITIONING_AI_MODEL_FALLBACK = 'qwen/qwen3.5-flash'
 
 export const POSITIONING_IMPORT_FIELDS: ImportFieldDefinition[] = [
   { key: 'hotel', label: 'Hotel', required: true },

@@ -1,12 +1,29 @@
+import { COMPETENCE_LABELS, CompetenceId } from '@/lib/positioning/competences'
 import {
   GroupRecommendationRow,
   OutboundMessageRow,
   ParticipantRow,
+  PositioningAiStatus,
   TestAttemptRow,
   TestInviteRow,
+  TestProductionRow,
   TestSectionResultRow,
 } from '@/lib/positioning/types'
 import { buildRecommendedGroupLabel, getLevelMeta } from '@/lib/positioning/scoring'
+
+export interface DashboardProductionSummary {
+  promptId: string
+  kind: 'writing' | 'speaking'
+  aiScore: number | null
+  aiLevel: string | null
+  aiStatus: PositioningAiStatus
+  aiConfidence: string | null
+  aiJustification: string | null
+  aiErrors: string[]
+  competenceLabels: string[]
+  responsePreview: string | null
+  hasAudio: boolean
+}
 
 export interface DashboardParticipantRow {
   participantId: string
@@ -23,6 +40,12 @@ export interface DashboardParticipantRow {
   startedAt: string | null
   completedAt: string | null
   totalScore: number | null
+  autoScore: number | null
+  writingScore: number | null
+  speakingScore: number | null
+  provisionalScore: number | null
+  aiStatus: PositioningAiStatus | null
+  needsTrainerReview: boolean
   level: string | null
   levelLabel: string | null
   recommendedGroup: string | null
@@ -30,6 +53,9 @@ export interface DashboardParticipantRow {
   deadlineAt: string | null
   absenceCategory: 'none' | 'not_sent' | 'non_opened' | 'non_started' | 'incomplete' | 'absent'
   sectionScores: Record<string, string>
+  strongCompetences: string[]
+  weakCompetences: string[]
+  productions: DashboardProductionSummary[]
   latestMessageId: string | null
   latestMessageStatus: string | null
   latestMessageKind: string | null
@@ -46,6 +72,7 @@ export interface DashboardSummary {
   totalCompleted: number
   totalAbsents: number
   totalIncompletes: number
+  totalNeedsReview: number
   completionRate: number
 }
 
@@ -72,6 +99,11 @@ export interface PositioningDashboardData {
   logs: OutboundMessageRow[]
 }
 
+function competenceLabels(ids: CompetenceId[] | null): string[] {
+  if (!ids || ids.length === 0) return []
+  return ids.map((id) => COMPETENCE_LABELS[id] || id)
+}
+
 export function buildPositioningDashboardData({
   participants,
   invites,
@@ -79,6 +111,7 @@ export function buildPositioningDashboardData({
   sectionResults,
   messages,
   groupRecommendations,
+  productions = [],
 }: {
   participants: ParticipantRow[]
   invites: TestInviteRow[]
@@ -86,6 +119,7 @@ export function buildPositioningDashboardData({
   sectionResults: TestSectionResultRow[]
   messages: OutboundMessageRow[]
   groupRecommendations: GroupRecommendationRow[]
+  productions?: TestProductionRow[]
 }): PositioningDashboardData {
   const now = Date.now()
   const inviteMap = new Map(invites.map((invite) => [invite.participant_id, invite]))
@@ -93,6 +127,7 @@ export function buildPositioningDashboardData({
   const groupMap = new Map(groupRecommendations.map((group) => [group.participant_id, group]))
   const latestMessageMap = new Map<string, OutboundMessageRow>()
   const sectionMap = new Map<string, TestSectionResultRow[]>()
+  const productionsByAttempt = new Map<string, TestProductionRow[]>()
 
   for (const message of messages) {
     const current = latestMessageMap.get(message.participant_id)
@@ -107,6 +142,12 @@ export function buildPositioningDashboardData({
     sectionMap.set(result.attempt_id, current)
   }
 
+  for (const production of productions) {
+    const current = productionsByAttempt.get(production.attempt_id) ?? []
+    current.push(production)
+    productionsByAttempt.set(production.attempt_id, current)
+  }
+
   const rows: DashboardParticipantRow[] = participants.map((participant) => {
     const invite = inviteMap.get(participant.id)
     const attempt = attemptMap.get(participant.id)
@@ -119,6 +160,21 @@ export function buildPositioningDashboardData({
         `${section.score}/${section.max_score}`,
       ]),
     )
+
+    const attemptProductions = attempt ? productionsByAttempt.get(attempt.id) ?? [] : []
+    const productionSummaries: DashboardProductionSummary[] = attemptProductions.map((row) => ({
+      promptId: row.prompt_id,
+      kind: row.kind,
+      aiScore: row.ai_score,
+      aiLevel: row.ai_level,
+      aiStatus: row.ai_status,
+      aiConfidence: row.ai_confidence,
+      aiJustification: row.ai_justification,
+      aiErrors: row.ai_errors || [],
+      competenceLabels: competenceLabels(row.ai_competences),
+      responsePreview: (row.transcription || row.response_text || '').slice(0, 240) || null,
+      hasAudio: row.has_audio,
+    }))
 
     const hasOpened = Boolean(invite?.opened_at)
     const hasStarted = Boolean(attempt?.started_at || invite?.started_at)
@@ -146,6 +202,13 @@ export function buildPositioningDashboardData({
     else if (hasOpened && !hasStarted && !hasCompleted) absenceCategory = isExpired ? 'absent' : 'non_started'
     else if (hasStarted && !hasCompleted) absenceCategory = 'incomplete'
 
+    const aiStatus = (attempt?.ai_status as PositioningAiStatus | null) ?? null
+    const needsTrainerReview =
+      attempt?.status === 'completed'
+        ? aiStatus !== 'ia_validated' ||
+          attemptProductions.some((p) => p.ai_status !== 'ia_validated')
+        : false
+
     return {
       participantId: participant.id,
       fullName: participant.full_name,
@@ -161,6 +224,12 @@ export function buildPositioningDashboardData({
       startedAt: attempt?.started_at ?? invite?.started_at ?? null,
       completedAt: attempt?.completed_at ?? invite?.completed_at ?? null,
       totalScore: attempt?.total_score ?? null,
+      autoScore: attempt?.auto_score ?? null,
+      writingScore: attempt?.writing_score ?? null,
+      speakingScore: attempt?.speaking_score ?? null,
+      provisionalScore: attempt?.provisional_score ?? null,
+      aiStatus,
+      needsTrainerReview,
       level: attempt?.estimated_level ?? null,
       levelLabel: attempt?.estimated_level ? levelMeta.label : null,
       recommendedGroup:
@@ -171,6 +240,9 @@ export function buildPositioningDashboardData({
       deadlineAt: invite?.deadline_at ?? null,
       absenceCategory,
       sectionScores,
+      strongCompetences: competenceLabels(attempt?.strong_competences ?? null),
+      weakCompetences: competenceLabels(attempt?.weak_competences ?? null),
+      productions: productionSummaries,
       latestMessageId: latestMessage?.id ?? null,
       latestMessageStatus: latestMessage?.status ?? null,
       latestMessageKind: latestMessage?.message_kind ?? null,
@@ -188,6 +260,7 @@ export function buildPositioningDashboardData({
     totalCompleted: rows.filter((row) => row.attemptStatus === 'completed').length,
     totalAbsents: rows.filter((row) => row.absenceCategory === 'absent').length,
     totalIncompletes: rows.filter((row) => row.absenceCategory === 'incomplete').length,
+    totalNeedsReview: rows.filter((row) => row.needsTrainerReview).length,
     completionRate: rows.length > 0 ? Math.round((rows.filter((row) => row.attemptStatus === 'completed').length / rows.length) * 100) : 0,
   }
 
@@ -221,12 +294,7 @@ export function buildPositioningDashboardData({
   const groups = Array.from(groupsMap.values()).sort((a, b) => a.groupName.localeCompare(b.groupName, 'fr'))
   const logs = [...messages].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
 
-  return {
-    summary,
-    rows,
-    groups,
-    logs,
-  }
+  return { summary, rows, groups, logs }
 }
 
 function getDeliveryUrl(message: OutboundMessageRow | undefined) {

@@ -50,6 +50,18 @@ function formatScore(value: number | null) {
   return value !== null ? `${value}/100` : 'Non evalue'
 }
 
+function formatAiStatus(value: DashboardRow['aiStatus']) {
+  const labels: Record<string, string> = {
+    ia_validated: 'IA validee',
+    needs_trainer_review: 'A revoir formateur',
+    trainer_corrected: 'Corrigee formateur',
+    audio_unusable: 'Audio inexploitable',
+    missing_answer: 'Reponse manquante',
+  }
+  if (!value) return 'En attente'
+  return labels[value] || value
+}
+
 function formatLevel(value: string | null) {
   return value || 'Non evalue'
 }
@@ -385,7 +397,7 @@ export default function PositioningManagerClient({
           <SummaryCard label="Commences" value={countStarted} />
           <SummaryCard label="Termines" value={initialDashboard.summary.totalCompleted} />
           <SummaryCard label="Incomplets" value={countIncomplete} />
-          <SummaryCard label="Absents" value={countAbsents} />
+          <SummaryCard label="A revoir IA" value={initialDashboard.summary.totalNeedsReview} />
           <SummaryCard label="Taux de completion" value={`${initialDashboard.summary.completionRate}%`} />
         </div>
       </section>
@@ -504,9 +516,13 @@ export default function PositioningManagerClient({
                           <th className="pb-3 pr-4">Hotel</th>
                           <th className="pb-3 pr-4">Service</th>
                           <th className="pb-3 pr-4">Statut</th>
-                          <th className="pb-3 pr-4">Score</th>
+                          <th className="pb-3 pr-4">Auto</th>
+                          <th className="pb-3 pr-4">Ecrit IA</th>
+                          <th className="pb-3 pr-4">Oral IA</th>
+                          <th className="pb-3 pr-4">Global</th>
                           <th className="pb-3 pr-4">Niveau</th>
                           <th className="pb-3 pr-4">Groupe</th>
+                          <th className="pb-3 pr-4">IA</th>
                           <th className="pb-3">Detail</th>
                         </tr>
                       </thead>
@@ -524,9 +540,21 @@ export default function PositioningManagerClient({
                             <td className="py-3 pr-4">
                               <StatusBadge label={getRowStatusLabel(row)} />
                             </td>
+                            <td className="py-3 pr-4 text-gray-700">{formatScore(row.autoScore)}</td>
+                            <td className="py-3 pr-4 text-gray-700">{formatScore(row.writingScore)}</td>
+                            <td className="py-3 pr-4 text-gray-700">{formatScore(row.speakingScore)}</td>
                             <td className="py-3 pr-4 font-semibold text-gray-900">{formatScore(row.totalScore)}</td>
                             <td className="py-3 pr-4 text-gray-600">{formatLevel(row.levelLabel)}</td>
                             <td className="py-3 pr-4 text-gray-600">{formatGroup(row.recommendedGroup)}</td>
+                            <td className="py-3 pr-4">
+                              {row.attemptStatus === 'completed' ? (
+                                <Pill tone={row.needsTrainerReview ? 'amber' : 'green'}>
+                                  {formatAiStatus(row.aiStatus)}
+                                </Pill>
+                              ) : (
+                                <span className="text-xs text-gray-400">-</span>
+                              )}
+                            </td>
                             <td className="py-3">
                               <button
                                 type="button"
@@ -625,11 +653,82 @@ export default function PositioningManagerClient({
                     <MiniInfo label="Statut" value={getRowStatusLabel(selectedRow)} />
                     <MiniInfo label="Suivi" value={formatAbsenceLabel(selectedRow.absenceCategory)} />
                     <MiniInfo label="Niveau" value={formatLevel(selectedRow.levelLabel)} />
-                    <MiniInfo label="Score" value={formatScore(selectedRow.totalScore)} />
+                    <MiniInfo label="Score auto" value={formatScore(selectedRow.autoScore)} />
+                    <MiniInfo label="Ecrit IA" value={formatScore(selectedRow.writingScore)} />
+                    <MiniInfo label="Oral IA" value={formatScore(selectedRow.speakingScore)} />
+                    <MiniInfo label="Score global" value={formatScore(selectedRow.totalScore)} />
+                    <MiniInfo label="Statut IA" value={formatAiStatus(selectedRow.aiStatus)} />
                     <MiniInfo label="Groupe" value={formatGroup(selectedRow.recommendedGroup)} />
                     <MiniInfo label="Dernier message" value={getMessageStatusLabel(selectedRow)} />
-                    <MiniInfo label="Derniere action" value={formatDateTime(selectedRow.latestMessageAt)} />
                   </div>
+
+                  {(selectedRow.strongCompetences.length > 0 || selectedRow.weakCompetences.length > 0) && (
+                    <div className="rounded-2xl bg-gray-50 p-4">
+                      <p className="text-xs font-semibold uppercase tracking-wide text-gray-400">
+                        Competences
+                      </p>
+                      {selectedRow.strongCompetences.length > 0 && (
+                        <div className="mt-2">
+                          <p className="text-xs font-semibold text-emerald-700">Points forts</p>
+                          <ul className="mt-1 list-disc pl-4 text-xs text-gray-700">
+                            {selectedRow.strongCompetences.map((label) => (
+                              <li key={label}>{label}</li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+                      {selectedRow.weakCompetences.length > 0 && (
+                        <div className="mt-2">
+                          <p className="text-xs font-semibold text-amber-700">A renforcer</p>
+                          <ul className="mt-1 list-disc pl-4 text-xs text-gray-700">
+                            {selectedRow.weakCompetences.map((label) => (
+                              <li key={label}>{label}</li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {selectedRow.productions.length > 0 && (
+                    <div className="rounded-2xl bg-gray-50 p-4">
+                      <p className="text-xs font-semibold uppercase tracking-wide text-gray-400">
+                        Productions IA
+                      </p>
+                      <div className="mt-2 space-y-2">
+                        {selectedRow.productions.map((production) => (
+                          <div key={production.promptId} className="rounded-xl bg-white p-3 ring-1 ring-gray-100">
+                            <div className="flex items-center justify-between gap-2">
+                              <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                                {production.kind === 'writing' ? 'Ecrit' : 'Oral'} - {production.promptId}
+                              </p>
+                              <Pill tone={production.aiStatus === 'ia_validated' ? 'green' : 'amber'}>
+                                {formatAiStatus(production.aiStatus)}
+                              </Pill>
+                            </div>
+                            <p className="mt-1 text-xs text-gray-600">
+                              Score : {formatScore(production.aiScore)}
+                              {production.aiLevel ? ` · ${production.aiLevel}` : ''}
+                              {production.aiConfidence ? ` · confiance ${production.aiConfidence}` : ''}
+                            </p>
+                            {production.aiJustification ? (
+                              <p className="mt-1 text-xs text-gray-700">{production.aiJustification}</p>
+                            ) : null}
+                            {production.aiErrors.length > 0 && (
+                              <p className="mt-1 text-xs text-amber-700">
+                                {production.aiErrors.join(' · ')}
+                              </p>
+                            )}
+                            {production.responsePreview ? (
+                              <p className="mt-1 line-clamp-3 text-xs italic text-gray-500">
+                                « {production.responsePreview} »
+                              </p>
+                            ) : null}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                   <div className="rounded-2xl bg-gray-50 p-4">
                     <p className="text-xs font-semibold uppercase tracking-wide text-gray-400">
                       Envoi WhatsApp
