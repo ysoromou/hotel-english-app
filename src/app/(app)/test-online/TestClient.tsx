@@ -415,21 +415,15 @@ export default function TestClient() {
               : 'Tes réponses ont bien été enregistrées.'}
           </p>
 
-          <div className="mb-6 mt-6 rounded-2xl border border-blue-100 bg-blue-50 p-4">
-            <p className="text-xs font-semibold uppercase tracking-wide text-blue-600">
-              Score partiel automatique
-            </p>
-            <p className="mt-1 text-3xl font-black text-blue-900">
-              {finalScore}
-              <span className="text-lg text-blue-400">/100</span>
-            </p>
-            <p className="mt-1 text-xs text-blue-500">
-              Niveau suggéré : <strong>{finalLevel}</strong>
-            </p>
-          </div>
+          <p className="mt-6 rounded-2xl border border-blue-100 bg-blue-50 p-4 text-sm text-blue-900">
+            Vos réponses ont bien été enregistrées. Les résultats seront consolidés
+            par l’équipe formation. Vous serez recontacté(e) pour la suite.
+          </p>
 
-          <p className="rounded-2xl bg-amber-50 p-3 text-xs text-amber-700">
-            L’écrit libre et l’oral seront confirmés par un formateur avant la lecture finale du résultat.
+          <p className="mt-3 rounded-2xl bg-amber-50 p-3 text-xs text-amber-700">
+            L’écrit libre et l’expression orale doivent être validés par un
+            formateur avant toute communication du niveau final. Aucun score
+            définitif n’est affiché à ce stade.
           </p>
 
           {publicMode ? (
