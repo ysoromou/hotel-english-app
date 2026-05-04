@@ -139,31 +139,47 @@ function normalizeConfidence(value: unknown): 'high' | 'medium' | 'low' | null {
   return null
 }
 
+const OPENROUTER_TIMEOUT_MS = Number(process.env.AI_REQUEST_TIMEOUT_MS || 60_000)
+
 async function callOpenRouter(model: string, userPrompt: string) {
   const apiKey = process.env.OPENROUTER_API_KEY
   if (!apiKey) {
     throw new Error('OPENROUTER_API_KEY not configured.')
   }
 
-  const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${apiKey}`,
-      'HTTP-Referer': process.env.NEXT_PUBLIC_APP_URL || 'https://caformac.local',
-      'X-Title': 'CAFORMAC Positioning',
-    },
-    body: JSON.stringify({
-      model,
-      messages: [
-        { role: 'system', content: SYSTEM_PROMPT },
-        { role: 'user', content: userPrompt },
-      ],
-      temperature: 0.2,
-      max_tokens: 400,
-      response_format: { type: 'json_object' },
-    }),
-  })
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), OPENROUTER_TIMEOUT_MS)
+
+  let response: Response
+  try {
+    response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+      method: 'POST',
+      signal: controller.signal,
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${apiKey}`,
+        'HTTP-Referer': process.env.NEXT_PUBLIC_APP_URL || 'https://caformac.local',
+        'X-Title': 'CAFORMAC Positioning',
+      },
+      body: JSON.stringify({
+        model,
+        messages: [
+          { role: 'system', content: SYSTEM_PROMPT },
+          { role: 'user', content: userPrompt },
+        ],
+        temperature: 0.2,
+        max_tokens: 400,
+        response_format: { type: 'json_object' },
+      }),
+    })
+  } catch (error) {
+    clearTimeout(timer)
+    if ((error as Error).name === 'AbortError') {
+      throw new Error(`OpenRouter timeout (${OPENROUTER_TIMEOUT_MS}ms) on model ${model}.`)
+    }
+    throw error
+  }
+  clearTimeout(timer)
 
   if (!response.ok) {
     const text = await response.text().catch(() => '')

@@ -59,7 +59,15 @@ type PublicPayload = {
   error?: string
 }
 
-type ClientStatus = 'loading' | 'intro' | 'in_progress' | 'completed' | 'expired' | 'error'
+type ClientStatus =
+  | 'loading'
+  | 'intro'
+  | 'in_progress'
+  | 'submitting'
+  | 'submit_error'
+  | 'completed'
+  | 'expired'
+  | 'error'
 
 const SECTION_LABELS: Record<SectionKey, string> = {
   reading: 'Comprehension ecrite',
@@ -104,6 +112,9 @@ export default function PositioningParticipantClient({ token }: { token: string 
   const [submitting, setSubmitting] = useState(false)
   const [timeLeft, setTimeLeft] = useState(DEFAULT_DURATION_SECONDS)
   const [audioPlayedFor, setAudioPlayedFor] = useState<Record<string, boolean>>({})
+  const [submitError, setSubmitError] = useState<string | null>(null)
+  const [submitElapsedSeconds, setSubmitElapsedSeconds] = useState(0)
+  const submitInFlightRef = useRef(false)
 
   async function loadPayload() {
     setStatus('loading')
@@ -248,19 +259,49 @@ export default function PositioningParticipantClient({ token }: { token: string 
   }
 
   async function handleSubmit() {
+    // Idempotence: empeche le double-clic et la double-soumission concurrente.
+    if (submitInFlightRef.current) return
+    submitInFlightRef.current = true
     setSubmitting(true)
+    setSubmitError(null)
+    setSubmitElapsedSeconds(0)
+    setStatus('submitting')
+
+    const started = Date.now()
+    const elapsedTimer = window.setInterval(() => {
+      setSubmitElapsedSeconds(Math.round((Date.now() - started) / 1000))
+    }, 1000)
+
+    // Timeout client large (5 min) > timeout IA serveur (60 s par appel,
+    // executes en parallele). Si depasse, on garde les reponses cote serveur.
+    const controller = new AbortController()
+    const clientTimeout = window.setTimeout(() => controller.abort(), 5 * 60 * 1000)
+
     try {
       const response = await fetch(`/api/positioning/public/${token}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'SUBMIT_TEST' }),
+        signal: controller.signal,
       })
-      if (!response.ok) throw new Error()
+      if (!response.ok) {
+        const text = await response.text().catch(() => '')
+        throw new Error(text || `HTTP ${response.status}`)
+      }
       await loadPayload()
-    } catch {
-      setStatus('error')
+    } catch (error) {
+      const isAbort = (error as Error)?.name === 'AbortError'
+      setSubmitError(
+        isAbort
+          ? 'Le traitement IA prend plus de temps que prevu. Vos reponses sont enregistrees mais l\'analyse n\'a pas abouti. Merci de reessayer.'
+          : 'Vos reponses n\'ont pas pu etre transmises. Merci de verifier votre connexion et de reessayer.',
+      )
+      setStatus('submit_error')
     } finally {
+      window.clearInterval(elapsedTimer)
+      window.clearTimeout(clientTimeout)
       setSubmitting(false)
+      submitInFlightRef.current = false
     }
   }
 
@@ -299,6 +340,24 @@ export default function PositioningParticipantClient({ token }: { token: string 
           contacter votre responsable.
         </p>
       </ScreenShell>
+    )
+  }
+  if (status === 'submitting') {
+    return <SubmittingScreen elapsedSeconds={submitElapsedSeconds} />
+  }
+  if (status === 'submit_error') {
+    return (
+      <SubmitErrorScreen
+        message={submitError}
+        onRetry={() => {
+          setStatus('in_progress')
+          handleSubmit().catch(() => undefined)
+        }}
+        onBackToReview={() => {
+          setStatus('in_progress')
+          setPhase('review')
+        }}
+      />
     )
   }
   if (status === 'completed') {
@@ -901,6 +960,97 @@ function ReviewPanel({
         </button>
       </div>
     </div>
+  )
+}
+
+function SubmittingScreen({ elapsedSeconds }: { elapsedSeconds: number }) {
+  // Sequencage simule cote client: les durees correspondent a peu pres
+  // au pipeline serveur (sauvegarde quasi instantanee, IA writing+speaking
+  // en parallele ~30-90 s, consolidation finale).
+  const steps = [
+    { label: 'Enregistrement de vos reponses', threshold: 0 },
+    { label: 'Analyse des productions ecrites et orales par IA', threshold: 5 },
+    { label: 'Consolidation des resultats', threshold: 60 },
+    { label: 'Finalisation du test', threshold: 110 },
+  ]
+  return (
+    <ScreenShell>
+      <div className="mx-auto h-12 w-12 animate-spin rounded-full border-4 border-emerald-200 border-t-emerald-600" />
+      <h1 className="mt-6 text-2xl font-bold text-gray-900">Transmission en cours</h1>
+      <p className="mt-2 text-sm text-gray-600">
+        Transmission de vos reponses et analyse des productions ecrites et orales.
+      </p>
+      <p className="mt-1 text-sm font-semibold text-amber-700">
+        Merci de ne pas fermer cette page. Cette etape peut prendre 1 a 3 minutes.
+      </p>
+      <ul className="mt-6 space-y-2 text-left text-sm">
+        {steps.map((step) => {
+          const reached = elapsedSeconds >= step.threshold
+          return (
+            <li
+              key={step.label}
+              className={`flex items-center gap-2 rounded-2xl px-3 py-2 ring-1 ${
+                reached
+                  ? 'bg-emerald-50 text-emerald-900 ring-emerald-100'
+                  : 'bg-gray-50 text-gray-500 ring-gray-100'
+              }`}
+            >
+              <span
+                className={`flex h-5 w-5 items-center justify-center rounded-full text-[10px] font-bold ${
+                  reached ? 'bg-emerald-600 text-white' : 'bg-gray-300 text-white'
+                }`}
+              >
+                {reached ? 'OK' : '...'}
+              </span>
+              <span>{step.label}</span>
+            </li>
+          )
+        })}
+      </ul>
+      <p className="mt-4 text-xs text-gray-400">Temps ecoule : {elapsedSeconds}s</p>
+    </ScreenShell>
+  )
+}
+
+function SubmitErrorScreen({
+  message,
+  onRetry,
+  onBackToReview,
+}: {
+  message: string | null
+  onRetry: () => void
+  onBackToReview: () => void
+}) {
+  return (
+    <ScreenShell>
+      <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-amber-100 text-2xl text-amber-700">
+        !
+      </div>
+      <h1 className="mt-6 text-2xl font-bold text-gray-900">Transmission interrompue</h1>
+      <p className="mt-3 text-sm text-gray-600">
+        {message ||
+          'Vos reponses n\'ont pas pu etre transmises. Merci de verifier votre connexion et de reessayer.'}
+      </p>
+      <p className="mt-2 text-xs text-gray-500">
+        Vos reponses deja enregistrees ne sont pas perdues. Vous pouvez reessayer la soumission.
+      </p>
+      <div className="mt-6 flex flex-col gap-2">
+        <button
+          type="button"
+          onClick={onRetry}
+          className="w-full rounded-full bg-emerald-600 px-5 py-4 text-base font-semibold text-white shadow-sm hover:bg-emerald-700"
+        >
+          Reessayer la soumission
+        </button>
+        <button
+          type="button"
+          onClick={onBackToReview}
+          className="w-full rounded-full border border-gray-200 px-5 py-3 text-sm font-medium text-gray-700"
+        >
+          Revenir a la validation finale
+        </button>
+      </div>
+    </ScreenShell>
   )
 }
 

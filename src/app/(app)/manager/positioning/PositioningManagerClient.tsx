@@ -145,7 +145,8 @@ function formatAbsenceLabel(value: DashboardRow['absenceCategory']) {
 }
 
 function formatSectionScore(value: string | undefined) {
-  return value || 'Non evalue'
+  if (!value) return 'Non evalue'
+  return `${value} bonnes reponses`
 }
 
 function formatDateTime(value: string | null | undefined) {
@@ -1056,15 +1057,41 @@ export default function PositioningManagerClient({
                   </div>
                   <div className="rounded-2xl bg-gray-50 p-4">
                     <p className="text-xs font-semibold uppercase tracking-wide text-gray-400">
-                      Sections
+                      Completion du test
+                    </p>
+                    <div className="mt-2 space-y-1 text-gray-600">
+                      <p>
+                        Test complete :{' '}
+                        <span className="font-semibold text-gray-900">
+                          {selectedRow.completedItems}/{selectedRow.totalItems} epreuves
+                        </span>
+                      </p>
+                      <p className="text-xs text-gray-500">
+                        QCM : {selectedRow.answeredQuestions}/{selectedRow.totalQuestions} ·
+                        Productions : {selectedRow.productionsSubmitted}/{selectedRow.totalProductions}
+                      </p>
+                      <p>A revoir formateur : {selectedRow.needsTrainerReview ? 'oui' : 'non'}</p>
+                      <p>Anomalies : {selectedRow.hasAnomalies ? `oui (${selectedRow.anomalies.length})` : 'aucune'}</p>
+                      <p className="text-xs text-gray-500">
+                        Statut suivi : {formatAbsenceLabel(selectedRow.absenceCategory)}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="rounded-2xl bg-gray-50 p-4">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-gray-400">
+                      Sections (bonnes reponses)
                     </p>
                     <div className="mt-2 space-y-1 text-gray-600">
                       <p>Lecture : {formatSectionScore(selectedRow.sectionScores.reading)}</p>
                       <p>Ecoute : {formatSectionScore(selectedRow.sectionScores.listening)}</p>
                       <p>Vocabulaire : {formatSectionScore(selectedRow.sectionScores.vocabulary)}</p>
                       <p>Situations : {formatSectionScore(selectedRow.sectionScores.situations)}</p>
-                      <p>Suivi : {formatAbsenceLabel(selectedRow.absenceCategory)}</p>
                     </div>
+                    {selectedRow.hasAnomalies && (
+                      <p className="mt-2 text-xs text-amber-700">
+                        {selectedRow.anomalies.join(' · ')}
+                      </p>
+                    )}
                   </div>
                 </div>
               )}

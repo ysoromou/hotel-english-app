@@ -202,23 +202,31 @@ async function runProductionsPipeline(
   productionsDraft: Record<string, AttemptProductionDraft>,
 ) {
   const productions = getPositioningProductions()
+
+  // Evaluations IA en parallele : reduit fortement le temps de soumission
+  // (de N x 60 s sequentiel a max(60 s) en parallele).
+  const evaluations = await Promise.all(
+    productions.map(async (prompt) => {
+      const draft = productionsDraft[prompt.id]
+      const responseText =
+        prompt.kind === 'writing' ? draft?.responseText?.trim() || null : null
+      const transcription =
+        prompt.kind === 'speaking' ? draft?.transcription?.trim() || null : null
+      const hasAudio = prompt.kind === 'speaking' ? Boolean(draft?.hasAudio) : false
+
+      const evaluation = await evaluateProduction({
+        prompt,
+        responseText,
+        transcription,
+        hasAudio,
+      })
+
+      return { prompt, responseText, transcription, hasAudio, evaluation }
+    }),
+  )
+
   const evaluatedRows: TestProductionRow[] = []
-
-  for (const prompt of productions) {
-    const draft = productionsDraft[prompt.id]
-    const responseText =
-      prompt.kind === 'writing' ? draft?.responseText?.trim() || null : null
-    const transcription =
-      prompt.kind === 'speaking' ? draft?.transcription?.trim() || null : null
-    const hasAudio = prompt.kind === 'speaking' ? Boolean(draft?.hasAudio) : false
-
-    const evaluation = await evaluateProduction({
-      prompt,
-      responseText,
-      transcription,
-      hasAudio,
-    })
-
+  for (const { prompt, responseText, transcription, hasAudio, evaluation } of evaluations) {
     const upsertPayload = {
       attempt_id: attemptId,
       participant_id: participantId,

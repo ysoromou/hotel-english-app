@@ -5,6 +5,7 @@
 import { seededShuffle } from './lib/positioning/utils'
 import { getPositioningQuestions, getPositioningProductions } from './lib/positioning/questions'
 import { computeAttemptResult, serializeQuestionBank } from './lib/positioning/scoring'
+import { buildPositioningDashboardData } from './lib/positioning/dashboard'
 
 let passed = 0
 let failed = 0
@@ -138,6 +139,85 @@ check(
   configFile.POSITIONING_AI_MODEL_FALLBACK !== 'qwen/qwen3.5-flash',
   `vu: ${configFile.POSITIONING_AI_MODEL_FALLBACK}`,
 )
+
+console.log('\n--- Positioning: dashboard completion ---')
+const fakeAttemptId = 'attempt-1'
+const fakeParticipantId = 'participant-1'
+const fakeInviteId = 'invite-1'
+const sectionResults = [
+  { id: 's1', attempt_id: fakeAttemptId, section_key: 'reading', score: 7, max_score: 8, details_json: null, created_at: new Date().toISOString() },
+  { id: 's2', attempt_id: fakeAttemptId, section_key: 'listening', score: 8, max_score: 8, details_json: null, created_at: new Date().toISOString() },
+  { id: 's3', attempt_id: fakeAttemptId, section_key: 'vocabulary', score: 8, max_score: 8, details_json: null, created_at: new Date().toISOString() },
+  { id: 's4', attempt_id: fakeAttemptId, section_key: 'situations', score: 7, max_score: 8, details_json: null, created_at: new Date().toISOString() },
+] as any
+const responsesPayload: Record<string, unknown> = {}
+for (const q of questions) responsesPayload[q.id] = { answer: q.correctOptionId, answeredAt: 'now' }
+const productionsPayload: Record<string, unknown> = {}
+for (const p of productions) productionsPayload[p.id] = { promptId: p.id, kind: p.kind, submittedAt: 'now' }
+
+const dashboard = buildPositioningDashboardData({
+  participants: [
+    {
+      id: fakeParticipantId,
+      hotel: 'H',
+      organization: null,
+      first_name: 'A',
+      last_name: 'B',
+      full_name: 'A B',
+      phone: '0',
+      normalized_phone: null,
+      email: null,
+      department: null,
+      external_ref: null,
+      status: 'completed',
+      created_at: 'now',
+      updated_at: 'now',
+    } as any,
+  ],
+  invites: [
+    { id: fakeInviteId, participant_id: fakeParticipantId, status: 'completed', completed_at: 'now', opened_at: 'now', started_at: 'now', expires_at: null, deadline_at: null, sent_at: null, last_reminder_at: null, access_version: 1, created_at: 'now', updated_at: 'now', token_hash: null } as any,
+  ],
+  attempts: [
+    {
+      id: fakeAttemptId,
+      participant_id: fakeParticipantId,
+      invite_id: fakeInviteId,
+      status: 'completed',
+      started_at: 'now',
+      submitted_at: 'now',
+      completed_at: 'now',
+      total_score: null,
+      estimated_level: null,
+      recommended_group: null,
+      duration_seconds: 1200,
+      device_info: null,
+      anomalies_json: ['Score provisoire incomplet'],
+      raw_result_json: { responses: responsesPayload, productions: productionsPayload },
+      auto_score: 100,
+      writing_score: null,
+      speaking_score: null,
+      provisional_score: null,
+      ai_status: 'needs_trainer_review',
+      strong_competences: null,
+      weak_competences: null,
+      created_at: 'now',
+      updated_at: 'now',
+    } as any,
+  ],
+  sectionResults,
+  messages: [],
+  groupRecommendations: [],
+  productions: [],
+})
+const row = dashboard.rows[0]
+check('Dashboard answeredQuestions = 32', row.answeredQuestions === 32, `vu: ${row.answeredQuestions}`)
+check('Dashboard productionsSubmitted = 6', row.productionsSubmitted === 6, `vu: ${row.productionsSubmitted}`)
+check('Dashboard completedItems = 38', row.completedItems === 38, `vu: ${row.completedItems}`)
+check('Dashboard totalItems = 38', row.totalItems === 38, `vu: ${row.totalItems}`)
+check('Dashboard sectionDetails.reading = {7,8}', row.sectionDetails.reading?.score === 7 && row.sectionDetails.reading?.max === 8)
+check('Dashboard sectionDetails.situations = {7,8}', row.sectionDetails.situations?.score === 7 && row.sectionDetails.situations?.max === 8)
+check('Dashboard sectionScores.reading conserve format `7/8`', row.sectionScores.reading === '7/8')
+check('Dashboard hasAnomalies true quand anomalies', row.hasAnomalies === true)
 
 console.log(`\n=== Resultats: ${passed} OK, ${failed} KO ===`)
 if (failed > 0) {

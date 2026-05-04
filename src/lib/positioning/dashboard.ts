@@ -10,6 +10,14 @@ import {
   TestSectionResultRow,
 } from '@/lib/positioning/types'
 import { buildRecommendedGroupLabel, getLevelMeta } from '@/lib/positioning/scoring'
+import {
+  getPositioningProductions,
+  getPositioningQuestions,
+} from '@/lib/positioning/questions'
+
+const TOTAL_QUESTION_COUNT = getPositioningQuestions().length
+const TOTAL_PRODUCTION_COUNT = getPositioningProductions().length
+const TOTAL_EXPECTED_ITEMS = TOTAL_QUESTION_COUNT + TOTAL_PRODUCTION_COUNT
 
 export interface DashboardProductionSummary {
   promptId: string
@@ -53,6 +61,18 @@ export interface DashboardParticipantRow {
   deadlineAt: string | null
   absenceCategory: 'none' | 'not_sent' | 'non_opened' | 'non_started' | 'incomplete' | 'absent'
   sectionScores: Record<string, string>
+  sectionDetails: Record<
+    'reading' | 'listening' | 'vocabulary' | 'situations',
+    { score: number; max: number } | null
+  >
+  answeredQuestions: number
+  totalQuestions: number
+  productionsSubmitted: number
+  totalProductions: number
+  completedItems: number
+  totalItems: number
+  hasAnomalies: boolean
+  anomalies: string[]
   strongCompetences: string[]
   weakCompetences: string[]
   productions: DashboardProductionSummary[]
@@ -155,14 +175,48 @@ export function buildPositioningDashboardData({
     const levelMeta = getLevelMeta(attempt?.estimated_level ?? null)
     const group = groupMap.get(participant.id)
     const latestMessage = latestMessageMap.get(participant.id)
+    const sectionRows = attempt ? sectionMap.get(attempt.id) ?? [] : []
     const sectionScores = Object.fromEntries(
-      (attempt ? sectionMap.get(attempt.id) ?? [] : []).map((section) => [
-        section.section_key,
-        `${section.score}/${section.max_score}`,
-      ]),
+      sectionRows.map((section) => [section.section_key, `${section.score}/${section.max_score}`]),
     )
+    const sectionDetails: DashboardParticipantRow['sectionDetails'] = {
+      reading: null,
+      listening: null,
+      vocabulary: null,
+      situations: null,
+    }
+    for (const section of sectionRows) {
+      if (
+        section.section_key === 'reading' ||
+        section.section_key === 'listening' ||
+        section.section_key === 'vocabulary' ||
+        section.section_key === 'situations'
+      ) {
+        sectionDetails[section.section_key] = {
+          score: section.score,
+          max: section.max_score,
+        }
+      }
+    }
 
     const attemptProductions = attempt ? productionsByAttempt.get(attempt.id) ?? [] : []
+    const rawResult = (attempt?.raw_result_json ?? {}) as {
+      responses?: Record<string, unknown>
+      productions?: Record<string, unknown>
+    }
+    const answeredQuestions = rawResult.responses ? Object.keys(rawResult.responses).length : 0
+    const productionsSubmittedRaw = rawResult.productions
+      ? Object.keys(rawResult.productions).length
+      : 0
+    // En cas d'evaluation faite, on prefere le nombre de lignes test_productions
+    // (productionsSubmittedRaw peut sous-compter si la sauvegarde brouillon a saute).
+    const productionsSubmitted = Math.max(productionsSubmittedRaw, attemptProductions.length)
+    const completedItems = answeredQuestions + productionsSubmitted
+    const anomaliesRaw = Array.isArray(attempt?.anomalies_json)
+      ? (attempt!.anomalies_json as unknown[]).filter(
+          (item): item is string => typeof item === 'string',
+        )
+      : []
     const productionSummaries: DashboardProductionSummary[] = attemptProductions.map((row) => ({
       promptId: row.prompt_id,
       kind: row.kind,
@@ -241,6 +295,15 @@ export function buildPositioningDashboardData({
       deadlineAt: invite?.deadline_at ?? null,
       absenceCategory,
       sectionScores,
+      sectionDetails,
+      answeredQuestions,
+      totalQuestions: TOTAL_QUESTION_COUNT,
+      productionsSubmitted,
+      totalProductions: TOTAL_PRODUCTION_COUNT,
+      completedItems,
+      totalItems: TOTAL_EXPECTED_ITEMS,
+      hasAnomalies: anomaliesRaw.length > 0,
+      anomalies: anomaliesRaw,
       strongCompetences: competenceLabels(attempt?.strong_competences ?? null),
       weakCompetences: competenceLabels(attempt?.weak_competences ?? null),
       productions: productionSummaries,
