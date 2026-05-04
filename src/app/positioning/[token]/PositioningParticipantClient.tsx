@@ -309,8 +309,8 @@ export default function PositioningParticipantClient({ token }: { token: string 
         </div>
         <h1 className="mt-6 text-2xl font-bold text-gray-900">Test termine</h1>
         <p className="mt-3 text-sm text-gray-600">
-          Merci {payload.participant.firstName}. Vos reponses ont bien ete enregistrees et
-          transmises a l'equipe CAFORMAC.
+          Merci {payload.participant.firstName}. Vos reponses ont bien ete enregistrees.
+          Les resultats seront consolides par l&apos;equipe formation.
         </p>
         <div className="mt-6 rounded-3xl bg-gray-50 p-4 text-left text-sm text-gray-600 ring-1 ring-gray-100">
           <p className="font-semibold text-gray-900">{payload.participant.hotel}</p>
@@ -338,7 +338,7 @@ export default function PositioningParticipantClient({ token }: { token: string 
           <p className="font-semibold text-gray-900">Avant de commencer</p>
           <ul className="mt-3 space-y-2 text-sm text-gray-600">
             <li>Duree estimee : {payload.durationMinutes ?? DEFAULT_DURATION_MINUTES} minutes.</li>
-            <li>Le test contient {questions.length} questions a choix unique, 2 productions ecrites et 2 productions orales.</li>
+            <li>Le test contient {questions.length} questions a choix unique, {writingPrompts.length} productions ecrites et {speakingPrompts.length} productions orales.</li>
             <li>Pour la comprehension orale, ecoutez chaque audio avant de repondre.</li>
             <li>Pour les productions orales, autorisez l'acces au micro lorsque demande.</li>
             <li>Le test peut etre repris si la connexion coupe.</li>
@@ -500,7 +500,7 @@ function QcmPanel({
       )}
 
       <div className="mt-5 space-y-3">
-        {question.options.map((option) => (
+        {question.options.map((option, index) => (
           <button
             key={option.id}
             type="button"
@@ -512,7 +512,7 @@ function QcmPanel({
             }`}
           >
             <span className="block text-xs font-semibold uppercase tracking-wide text-gray-400">
-              {option.id}
+              {String.fromCharCode(65 + index)}
             </span>
             <span className="mt-1 block text-sm font-medium">{option.text}</span>
           </button>

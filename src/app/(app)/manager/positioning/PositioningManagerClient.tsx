@@ -1062,7 +1062,8 @@ export default function PositioningManagerClient({
                       <p>Lecture : {formatSectionScore(selectedRow.sectionScores.reading)}</p>
                       <p>Ecoute : {formatSectionScore(selectedRow.sectionScores.listening)}</p>
                       <p>Vocabulaire : {formatSectionScore(selectedRow.sectionScores.vocabulary)}</p>
-                      <p>Situation : {formatAbsenceLabel(selectedRow.absenceCategory)}</p>
+                      <p>Situations : {formatSectionScore(selectedRow.sectionScores.situations)}</p>
+                      <p>Suivi : {formatAbsenceLabel(selectedRow.absenceCategory)}</p>
                     </div>
                   </div>
                 </div>

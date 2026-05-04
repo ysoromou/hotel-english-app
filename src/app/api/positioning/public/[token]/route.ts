@@ -172,7 +172,7 @@ export async function GET(_: NextRequest, { params }: { params: { token: string 
           progress: getProgressState(attempt),
         }
       : null,
-    questions: serializeQuestionBank(questions),
+    questions: serializeQuestionBank(questions, params.token),
     productions: serializeProductions(),
     durationMinutes: POSITIONING_DURATION_MINUTES,
     isExpired,
@@ -475,24 +475,43 @@ export async function POST(request: NextRequest, { params }: { params: { token: 
           ? 'needs_trainer_review'
           : 'ia_validated'
 
+    // Si writing/speaking ne sont pas evalues par l'IA, on refuse de produire
+    // un niveau / score global definitif a partir du seul score auto QCM.
+    // Le score auto reste visible RH, mais le niveau et le groupe sont marques
+    // a confirmer pour eviter d'afficher un faux 100 %.
+    const aiFullyValidated =
+      aiStatus === 'ia_validated' &&
+      aggregate.writingScore !== null &&
+      aggregate.speakingScore !== null
+    const finalProvisionalScore = aiFullyValidated ? provisional.provisional : null
+    const finalTotalScore = aiFullyValidated ? provisional.provisional : null
+    const finalLevel = aiFullyValidated ? provisional.level : null
+    const finalGroup = aiFullyValidated ? provisional.recommendedGroupBase : null
+    const provisionalAnomalies = aiFullyValidated
+      ? result.anomalies
+      : [
+          ...result.anomalies,
+          'Score provisoire incomplet : evaluation IA writing/speaking manquante. Niveau et groupe a confirmer par le formateur.',
+        ]
+
     await admin
       .from('test_attempts')
       .update({
         status: 'completed',
         submitted_at: completedAt,
         completed_at: completedAt,
-        total_score: provisional.provisional,
+        total_score: finalTotalScore,
         auto_score: result.autoScore,
         writing_score: aggregate.writingScore,
         speaking_score: aggregate.speakingScore,
-        provisional_score: provisional.provisional,
+        provisional_score: finalProvisionalScore,
         ai_status: aiStatus,
         strong_competences: competenceVerdict.strong,
         weak_competences: competenceVerdict.weak,
-        estimated_level: provisional.level,
-        recommended_group: provisional.recommendedGroupBase,
+        estimated_level: finalLevel,
+        recommended_group: finalGroup,
         duration_seconds: durationSeconds,
-        anomalies_json: result.anomalies,
+        anomalies_json: provisionalAnomalies,
         raw_result_json: {
           ...existingProgress,
           completedAt,

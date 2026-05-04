@@ -18,8 +18,8 @@ export const POSITIONING_WRITING_WEIGHT = 0.2
 export const POSITIONING_SPEAKING_WEIGHT = 0.2
 
 export const POSITIONING_AI_PROVIDER = process.env.AI_PROVIDER || 'openrouter'
-export const POSITIONING_AI_MODEL = process.env.AI_MODEL || 'qwen/qwen3.5-flash'
-export const POSITIONING_AI_MODEL_FALLBACK = 'qwen/qwen3.5-flash'
+export const POSITIONING_AI_MODEL = process.env.AI_MODEL || 'qwen/qwen3.6-flash'
+export const POSITIONING_AI_MODEL_FALLBACK = 'qwen/qwen3.6-flash'
 
 export const POSITIONING_IMPORT_FIELDS: ImportFieldDefinition[] = [
   { key: 'hotel', label: 'Hotel', required: true },

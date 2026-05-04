@@ -43,7 +43,7 @@ export function getAiBlockReport(): AiBlockReport | null {
     blocked: true,
     reason: 'OPENROUTER_API_KEY absent. Aucune evaluation IA possible pour writing/speaking.',
     unblockAction:
-      'Ajouter OPENROUTER_API_KEY dans .env.local (avec AI_PROVIDER=openrouter et AI_MODEL=qwen/qwen3.5-flash) puis redemarrer le serveur Next.js.',
+      'Ajouter OPENROUTER_API_KEY dans .env.local (avec AI_PROVIDER=openrouter et AI_MODEL=qwen/qwen3.6-flash) puis redemarrer le serveur Next.js.',
   }
 }
 
@@ -167,7 +167,15 @@ async function callOpenRouter(model: string, userPrompt: string) {
 
   if (!response.ok) {
     const text = await response.text().catch(() => '')
-    throw new Error(`OpenRouter ${response.status}: ${text.slice(0, 200)}`)
+    const lower = text.toLowerCase()
+    const isInvalidModel =
+      response.status === 400 &&
+      (lower.includes('not a valid model') || lower.includes('invalid model'))
+    const friendly = isInvalidModel
+      ? `Modele IA invalide (${model}). Verifier AI_MODEL dans .env / Vercel.`
+      : `OpenRouter ${response.status}: ${text.slice(0, 200)}`
+    console.error('[positioning][openrouter] model=%s status=%s body=%s', model, response.status, text.slice(0, 500))
+    throw new Error(friendly)
   }
 
   const json = (await response.json()) as {

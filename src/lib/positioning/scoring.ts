@@ -6,6 +6,7 @@ import {
 } from '@/lib/positioning/config'
 import { COMPETENCE_IDS, CompetenceId } from '@/lib/positioning/competences'
 import { getPositioningQuestions } from '@/lib/positioning/questions'
+import { seededShuffle } from '@/lib/positioning/utils'
 import {
   AttemptResponsesMap,
   ComputedAttemptResult,
@@ -165,12 +166,14 @@ export function buildRecommendedGroupLabel(
   return totalGroups > 1 ? `${meta.groupPrefix} ${suffix}` : meta.groupPrefix
 }
 
-export function serializeQuestionBank(questions: PositioningQuestion[]) {
+export function serializeQuestionBank(questions: PositioningQuestion[], shuffleSeed?: string) {
   return questions.map((question) => ({
     id: question.id,
     section: question.section,
     prompt: question.prompt,
     requiresAudio: Boolean(question.promptAudio || question.audioUrl),
-    options: question.options,
+    options: shuffleSeed
+      ? seededShuffle(question.options, `${shuffleSeed}::${question.id}`)
+      : question.options,
   }))
 }
