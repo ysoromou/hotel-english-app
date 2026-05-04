@@ -209,4 +209,7 @@ export interface MessageDispatchResult {
   deliveryUrl?: string
   providerMessageId?: string
   errorMessage?: string
+  httpStatus?: number
+  rawResponse?: string
+  senderUsed?: string
 }

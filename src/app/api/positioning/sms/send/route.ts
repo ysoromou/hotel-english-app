@@ -86,14 +86,54 @@ export async function POST(request: NextRequest) {
     }
     const messageBody = buildSmsBody({ kind: 'test_single', accessUrl: '' })
     const dispatch = await sendOrangeSms({ destination: SMS_TEST_NUMBER, message: messageBody })
+    const dispatchedAt = new Date().toISOString()
+
+    console.log('[positioning-sms] test_single', {
+      provider: dispatch.provider,
+      destination: SMS_TEST_NUMBER,
+      status: dispatch.status,
+      httpStatus: dispatch.httpStatus,
+      senderUsed: dispatch.senderUsed,
+      errorMessage: dispatch.errorMessage,
+      rawResponseHead: dispatch.rawResponse?.slice(0, 200),
+    })
+
+    let logInsertError: string | null = null
+    const { error: insertError } = await supabase.from('outbound_messages').insert({
+      participant_id: null,
+      invite_id: null,
+      channel: 'sms',
+      destination: SMS_TEST_NUMBER,
+      message_body: messageBody,
+      provider: dispatch.provider,
+      message_kind: 'test_single',
+      status: dispatch.status === 'sent' ? 'sent' : 'failed',
+      provider_message_id: dispatch.providerMessageId || null,
+      provider_payload: {
+        senderUsed: dispatch.senderUsed,
+        httpStatus: dispatch.httpStatus,
+        rawResponse: dispatch.rawResponse,
+      },
+      sent_at: dispatch.status === 'sent' ? dispatchedAt : null,
+      error_message: dispatch.errorMessage || null,
+    })
+    if (insertError) {
+      logInsertError = insertError.message
+      console.warn('[positioning-sms] insert outbound_messages failed', insertError.message)
+    }
+
     return NextResponse.json({
       action,
       provider: dispatch.provider,
       destination: SMS_TEST_NUMBER,
       status: dispatch.status,
+      httpStatus: dispatch.httpStatus,
       providerMessageId: dispatch.providerMessageId,
+      senderUsed: dispatch.senderUsed,
+      rawResponse: dispatch.rawResponse,
       errorMessage: dispatch.errorMessage,
       messageBody,
+      logInsertError,
     })
   }
 
@@ -192,6 +232,15 @@ export async function POST(request: NextRequest) {
     const dispatch = await sendOrangeSms({ destination: phone, message: messageBody })
     const dispatchedAt = new Date().toISOString()
 
+    console.log('[positioning-sms] campaign_send', {
+      action,
+      provider: dispatch.provider,
+      destination: phone,
+      status: dispatch.status,
+      httpStatus: dispatch.httpStatus,
+      errorMessage: dispatch.errorMessage,
+    })
+
     await supabase.from('outbound_messages').insert({
       participant_id: participant.id,
       invite_id: invite.id,
@@ -202,7 +251,12 @@ export async function POST(request: NextRequest) {
       message_kind: action,
       status: dispatch.status === 'sent' ? 'sent' : 'failed',
       provider_message_id: dispatch.providerMessageId || null,
-      provider_payload: { accessUrl },
+      provider_payload: {
+        accessUrl,
+        senderUsed: dispatch.senderUsed,
+        httpStatus: dispatch.httpStatus,
+        rawResponse: dispatch.rawResponse,
+      },
       sent_at: dispatch.status === 'sent' ? dispatchedAt : null,
       error_message: dispatch.errorMessage || null,
     })

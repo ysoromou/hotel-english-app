@@ -74,6 +74,16 @@ function formatTel(value: string) {
   return `tel:+${digits}`
 }
 
+function formatSenderAddress(value: string) {
+  const trimmed = value.trim()
+  if (!trimmed) return null
+  if (trimmed.toLowerCase().startsWith('tel:')) return trimmed
+  const digits = trimmed.replace(/\D+/g, '')
+  if (digits.length >= 6) return `tel:+${digits}`
+  // alphanumeric short name (Sender ID): Orange exposes it as tel:<name>
+  return `tel:${trimmed}`
+}
+
 export async function sendOrangeSms({
   destination,
   message,
@@ -82,10 +92,18 @@ export async function sendOrangeSms({
   message: string
 }): Promise<MessageDispatchResult> {
   const provider = 'orange'
-  const sender = process.env.ORANGE_SMS_SENDER as string
-  const senderTel = formatTel(sender) || `tel:${sender}`
+  const senderRaw = (process.env.ORANGE_SMS_SENDER as string) || ''
+  const senderTel = formatSenderAddress(senderRaw)
   const recipientTel = formatTel(destination)
 
+  if (!senderTel) {
+    return {
+      provider,
+      status: 'failed',
+      destination,
+      errorMessage: 'ORANGE_SMS_SENDER vide ou invalide.',
+    }
+  }
   if (!recipientTel) {
     return {
       provider,
@@ -104,6 +122,7 @@ export async function sendOrangeSms({
       status: 'failed',
       destination,
       errorMessage: error instanceof Error ? error.message : 'Erreur OAuth Orange.',
+      senderUsed: senderTel,
     }
   }
 
@@ -135,26 +154,72 @@ export async function sendOrangeSms({
       status: 'failed',
       destination,
       errorMessage: error instanceof Error ? error.message : 'Erreur reseau Orange.',
+      senderUsed: senderTel,
     }
   }
 
   const text = await response.text()
+  const trimmedText = text.slice(0, 800)
+
   if (!response.ok) {
     return {
       provider,
       status: 'failed',
       destination,
-      errorMessage: `Orange ${response.status}: ${text.slice(0, 400)}`,
+      httpStatus: response.status,
+      rawResponse: trimmedText,
+      senderUsed: senderTel,
+      errorMessage: `Orange ${response.status}: ${trimmedText}`,
     }
   }
 
   let providerMessageId: string | undefined
+  let acceptedByOrange = false
   try {
     const payload = JSON.parse(text) as Record<string, any>
-    const ref = payload?.outboundSMSMessageRequest?.resourceURL
+    const req = payload?.outboundSMSMessageRequest
+    const ref = req?.resourceURL
     if (typeof ref === 'string') providerMessageId = ref
+    // Orange echoes back the request when accepted; presence of resourceURL
+    // OR a deliveryInfoList with a non-error code is the real success marker.
+    const deliveryInfo = req?.deliveryInfoList?.deliveryInfo?.[0]
+    const deliveryStatus =
+      typeof deliveryInfo?.deliveryStatus === 'string' ? deliveryInfo.deliveryStatus : null
+    if (deliveryStatus && /Error|Undeliverable|Failed/i.test(deliveryStatus)) {
+      return {
+        provider,
+        status: 'failed',
+        destination,
+        httpStatus: response.status,
+        rawResponse: trimmedText,
+        senderUsed: senderTel,
+        errorMessage: `Orange deliveryStatus=${deliveryStatus}`,
+      }
+    }
+    acceptedByOrange = Boolean(ref || deliveryStatus)
   } catch {
-    // ignore parse error
+    // unparseable — be conservative and treat as failed so the UI does not lie
+    return {
+      provider,
+      status: 'failed',
+      destination,
+      httpStatus: response.status,
+      rawResponse: trimmedText,
+      senderUsed: senderTel,
+      errorMessage: 'Reponse Orange illisible (JSON invalide).',
+    }
+  }
+
+  if (!acceptedByOrange) {
+    return {
+      provider,
+      status: 'failed',
+      destination,
+      httpStatus: response.status,
+      rawResponse: trimmedText,
+      senderUsed: senderTel,
+      errorMessage: 'Orange a repondu 2xx mais sans resourceURL ni deliveryStatus.',
+    }
   }
 
   return {
@@ -162,6 +227,9 @@ export async function sendOrangeSms({
     status: 'sent',
     destination,
     providerMessageId,
+    httpStatus: response.status,
+    rawResponse: trimmedText,
+    senderUsed: senderTel,
   }
 }
 

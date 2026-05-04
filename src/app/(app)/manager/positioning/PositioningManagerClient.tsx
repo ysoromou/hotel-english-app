@@ -27,6 +27,11 @@ interface SmsTestResult {
   errorMessage?: string
   messageBody?: string
   provider?: string
+  httpStatus?: number
+  providerMessageId?: string
+  senderUsed?: string
+  rawResponse?: string
+  logInsertError?: string | null
 }
 
 interface SmsRunResult {
@@ -419,8 +424,16 @@ export default function PositioningManagerClient({
           errorMessage: payload.errorMessage,
           messageBody: payload.messageBody,
           provider: payload.provider,
+          httpStatus: payload.httpStatus,
+          providerMessageId: payload.providerMessageId,
+          senderUsed: payload.senderUsed,
+          rawResponse: payload.rawResponse,
+          logInsertError: payload.logInsertError ?? null,
         })
+        // Only unlock real campaigns on a real Orange acceptance
         if (payload.status === 'sent') setSmsTestPassed(true)
+        else setSmsTestPassed(false)
+        router.refresh()
       } else {
         setSmsRunResult(payload as SmsRunResult)
         router.refresh()
@@ -1287,16 +1300,50 @@ export default function PositioningManagerClient({
                 }`}
               >
                 <p className="font-semibold">
-                  SMS test : {smsTestResult.status} ({smsTestResult.destination})
+                  {smsTestResult.status === 'sent'
+                    ? `SMS accepte par Orange (HTTP ${smsTestResult.httpStatus ?? '?'}) -> ${smsTestResult.destination}`
+                    : `Echec SMS test (HTTP ${smsTestResult.httpStatus ?? 'n/a'})`}
                 </p>
+                {smsTestResult.providerMessageId ? (
+                  <p className="mt-1 break-all text-xs">
+                    resourceURL : {smsTestResult.providerMessageId}
+                  </p>
+                ) : null}
+                {smsTestResult.senderUsed ? (
+                  <p className="mt-1 text-xs">Sender utilise : {smsTestResult.senderUsed}</p>
+                ) : null}
                 {smsTestResult.errorMessage ? (
                   <p className="mt-1">Erreur : {smsTestResult.errorMessage}</p>
                 ) : null}
-                {smsTestResult.messageBody ? (
-                  <pre className="mt-2 whitespace-pre-wrap font-mono text-xs">
-                    {smsTestResult.messageBody}
-                  </pre>
+                {smsTestResult.logInsertError ? (
+                  <p className="mt-1 text-xs">
+                    Journal non ecrit : {smsTestResult.logInsertError} (appliquer la migration
+                    sql/021_outbound_messages_allow_null_participant.sql).
+                  </p>
                 ) : null}
+                {smsTestResult.rawResponse ? (
+                  <details className="mt-2">
+                    <summary className="cursor-pointer text-xs font-semibold">
+                      Reponse brute Orange
+                    </summary>
+                    <pre className="mt-2 whitespace-pre-wrap break-all font-mono text-xs">
+                      {smsTestResult.rawResponse}
+                    </pre>
+                  </details>
+                ) : null}
+                {smsTestResult.messageBody ? (
+                  <details className="mt-2">
+                    <summary className="cursor-pointer text-xs font-semibold">Message envoye</summary>
+                    <pre className="mt-2 whitespace-pre-wrap font-mono text-xs">
+                      {smsTestResult.messageBody}
+                    </pre>
+                  </details>
+                ) : null}
+                <p className="mt-2 text-xs">
+                  {smsTestResult.status === 'sent'
+                    ? 'Si vous ne recevez rien sur le telephone, verifier le sender ORANGE_SMS_SENDER, le quota Orange et que le numero est en liste blanche.'
+                    : 'Aucun SMS reel envoye. Les boutons d envoi reel restent verrouilles.'}
+                </p>
               </div>
             ) : null}
 
