@@ -1,4 +1,10 @@
-import { POSITIONING_LEVEL_RULES } from '@/lib/positioning/config'
+import {
+  POSITIONING_AUTO_WEIGHT,
+  POSITIONING_LEVEL_RULES,
+  POSITIONING_SPEAKING_WEIGHT,
+  POSITIONING_WRITING_WEIGHT,
+} from '@/lib/positioning/config'
+import { COMPETENCE_IDS, CompetenceId } from '@/lib/positioning/competences'
 import { getPositioningQuestions } from '@/lib/positioning/questions'
 import {
   AttemptResponsesMap,
@@ -17,6 +23,9 @@ function getLevelRule(score: number) {
 export function computeAttemptResult(responses: AttemptResponsesMap): ComputedAttemptResult {
   const questions = getPositioningQuestions()
   const sectionBuckets = new Map<string, { score: number; maxScore: number; answered: number }>()
+  const competenceCoverage = Object.fromEntries(
+    COMPETENCE_IDS.map((id) => [id, { hits: 0, misses: 0, attempts: 0 }]),
+  ) as Record<CompetenceId, { hits: number; misses: number; attempts: number }>
   const anomalies: string[] = []
   let totalCorrect = 0
 
@@ -25,11 +34,21 @@ export function computeAttemptResult(responses: AttemptResponsesMap): ComputedAt
     bucket.maxScore += 1
 
     const response = responses[question.id]
+    let isCorrect = false
     if (response?.answer) {
       bucket.answered += 1
       if (response.answer === question.correctOptionId) {
         bucket.score += 1
         totalCorrect += 1
+        isCorrect = true
+      }
+    }
+
+    if (response?.answer) {
+      for (const competence of question.competences) {
+        competenceCoverage[competence].attempts += 1
+        if (isCorrect) competenceCoverage[competence].hits += 1
+        else competenceCoverage[competence].misses += 1
       }
     }
 
@@ -37,12 +56,12 @@ export function computeAttemptResult(responses: AttemptResponsesMap): ComputedAt
   }
 
   const totalQuestions = questions.length
-  const totalScore = totalQuestions > 0 ? Math.round((totalCorrect / totalQuestions) * 100) : 0
-  const levelRule = getLevelRule(totalScore)
+  const autoScore = totalQuestions > 0 ? Math.round((totalCorrect / totalQuestions) * 100) : 0
+  const levelRule = getLevelRule(autoScore)
 
   const sectionScores = Array.from(sectionBuckets.entries()).map(([sectionKey, bucket]) => {
     if (bucket.answered === 0) {
-      anomalies.push(`Section ${sectionKey} sans réponse enregistrée.`)
+      anomalies.push(`Section ${sectionKey} sans reponse enregistree.`)
     }
 
     return {
@@ -56,12 +75,73 @@ export function computeAttemptResult(responses: AttemptResponsesMap): ComputedAt
   return {
     totalCorrect,
     totalQuestions,
-    totalScore,
+    autoScore,
     level: levelRule.key,
     levelLabel: levelRule.label,
     recommendedGroupBase: levelRule.recommendedGroupPrefix,
     sectionScores,
+    competenceCoverage,
     anomalies,
+  }
+}
+
+export interface ProvisionalScoreInput {
+  autoScore: number | null
+  writingScore: number | null
+  speakingScore: number | null
+}
+
+export interface ProvisionalScoreOutput {
+  provisional: number
+  level: PositioningLevelKey
+  levelLabel: string
+  recommendedGroupBase: string
+}
+
+export function computeProvisionalScore(input: ProvisionalScoreInput): ProvisionalScoreOutput {
+  const auto = input.autoScore ?? 0
+  const writing = input.writingScore ?? 0
+  const speaking = input.speakingScore ?? 0
+
+  const totalWeight =
+    (input.autoScore !== null ? POSITIONING_AUTO_WEIGHT : 0) +
+    (input.writingScore !== null ? POSITIONING_WRITING_WEIGHT : 0) +
+    (input.speakingScore !== null ? POSITIONING_SPEAKING_WEIGHT : 0)
+
+  const weightedSum =
+    (input.autoScore !== null ? auto * POSITIONING_AUTO_WEIGHT : 0) +
+    (input.writingScore !== null ? writing * POSITIONING_WRITING_WEIGHT : 0) +
+    (input.speakingScore !== null ? speaking * POSITIONING_SPEAKING_WEIGHT : 0)
+
+  const provisional = totalWeight > 0 ? Math.round(weightedSum / totalWeight) : 0
+  const rule = getLevelRule(provisional)
+
+  return {
+    provisional,
+    level: rule.key,
+    levelLabel: rule.label,
+    recommendedGroupBase: rule.recommendedGroupPrefix,
+  }
+}
+
+export function deriveCompetenceVerdict(
+  coverage: Record<CompetenceId, { hits: number; misses: number; attempts: number }>,
+  productionCompetences: { strong: CompetenceId[]; weak: CompetenceId[] },
+) {
+  const strong = new Set<CompetenceId>(productionCompetences.strong)
+  const weak = new Set<CompetenceId>(productionCompetences.weak)
+
+  for (const id of COMPETENCE_IDS) {
+    const stat = coverage[id]
+    if (stat.attempts === 0) continue
+    const ratio = stat.hits / stat.attempts
+    if (ratio >= 0.75) strong.add(id)
+    else if (ratio <= 0.34) weak.add(id)
+  }
+
+  return {
+    strong: Array.from(strong),
+    weak: Array.from(weak),
   }
 }
 
@@ -90,8 +170,7 @@ export function serializeQuestionBank(questions: PositioningQuestion[]) {
     id: question.id,
     section: question.section,
     prompt: question.prompt,
-    promptAudio: question.promptAudio ?? null,
-    audioUrl: question.audioUrl ?? null,
+    requiresAudio: Boolean(question.promptAudio || question.audioUrl),
     options: question.options,
   }))
 }

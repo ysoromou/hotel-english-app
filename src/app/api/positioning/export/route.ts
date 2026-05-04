@@ -26,13 +26,22 @@ export async function GET(request: NextRequest) {
   const exportType = request.nextUrl.searchParams.get('type') || 'results'
   const format = request.nextUrl.searchParams.get('format') || 'csv'
 
-  const [participantsRes, invitesRes, attemptsRes, sectionsRes, messagesRes, groupsRes] = await Promise.all([
+  const [
+    participantsRes,
+    invitesRes,
+    attemptsRes,
+    sectionsRes,
+    messagesRes,
+    groupsRes,
+    productionsRes,
+  ] = await Promise.all([
     supabase.from('participants').select('*'),
     supabase.from('test_invites').select('*'),
     supabase.from('test_attempts').select('*'),
     supabase.from('test_section_results').select('*'),
     supabase.from('outbound_messages').select('*'),
     supabase.from('group_recommendations').select('*'),
+    supabase.from('test_productions').select('*'),
   ])
 
   const dashboard = buildPositioningDashboardData({
@@ -42,6 +51,7 @@ export async function GET(request: NextRequest) {
     sectionResults: sectionsRes.data || [],
     messages: messagesRes.data || [],
     groupRecommendations: groupsRes.data || [],
+    productions: productionsRes.data || [],
   })
 
   const resultsRows = dashboard.rows.map((row) => ({
@@ -53,15 +63,23 @@ export async function GET(request: NextRequest) {
     email: row.email,
     invite_status: row.inviteStatus,
     attempt_status: row.attemptStatus,
+    score_auto: row.autoScore ?? '',
+    score_writing_ia: row.writingScore ?? '',
+    score_speaking_ia: row.speakingScore ?? '',
     score_global: row.totalScore ?? '',
     level: row.levelLabel ?? row.level ?? '',
     recommended_group: row.recommendedGroup ?? '',
+    ai_status: row.aiStatus ?? '',
+    needs_trainer_review: row.needsTrainerReview ? 'oui' : 'non',
+    competences_fortes: row.strongCompetences.join(' | '),
+    competences_faibles: row.weakCompetences.join(' | '),
     followup_status: row.absenceCategory,
     whatsapp_status: row.latestMessageStatus ?? '',
     whatsapp_last_at: row.latestMessageAt ?? '',
     reading: row.sectionScores.reading ?? '',
     listening: row.sectionScores.listening ?? '',
     vocabulary: row.sectionScores.vocabulary ?? '',
+    situations: row.sectionScores.situations ?? '',
     duration_seconds: row.durationSeconds ?? '',
     completed_at: row.completedAt ?? '',
   }))

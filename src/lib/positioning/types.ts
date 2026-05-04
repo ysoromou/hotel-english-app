@@ -1,4 +1,8 @@
-export type PositioningSectionKey = 'reading' | 'listening' | 'vocabulary' | 'speaking'
+import type { CompetenceId } from '@/lib/positioning/competences'
+
+export type PositioningSectionKey = 'reading' | 'listening' | 'vocabulary' | 'situations'
+export type PositioningProductionKind = 'writing' | 'speaking'
+export type PositioningMetier = 'reception' | 'housekeeping' | 'restaurant' | 'security'
 
 export type PositioningLevelKey = 'A1' | 'A2' | 'B1' | 'B2'
 
@@ -11,6 +15,13 @@ export type PositioningInviteStatus =
   | 'expired'
 
 export type PositioningAttemptStatus = 'not_started' | 'in_progress' | 'completed' | 'expired'
+
+export type PositioningAiStatus =
+  | 'ia_validated'
+  | 'needs_trainer_review'
+  | 'trainer_corrected'
+  | 'audio_unusable'
+  | 'missing_answer'
 
 export interface PositioningQuestionOption {
   id: string
@@ -27,6 +38,19 @@ export interface PositioningQuestion {
   type: 'mcq'
   options: PositioningQuestionOption[]
   correctOptionId: string
+  competences: CompetenceId[]
+  metier: PositioningMetier
+}
+
+export interface PositioningProductionPrompt {
+  id: string
+  kind: PositioningProductionKind
+  level: PositioningLevelKey
+  metier: PositioningMetier
+  competences: CompetenceId[]
+  context: string
+  task: string
+  guidance?: string
 }
 
 export interface LevelRule {
@@ -129,6 +153,13 @@ export interface TestAttemptRow {
   device_info: Record<string, unknown> | null
   anomalies_json: unknown[] | null
   raw_result_json: Record<string, unknown> | null
+  auto_score: number | null
+  writing_score: number | null
+  speaking_score: number | null
+  provisional_score: number | null
+  ai_status: PositioningAiStatus | null
+  strong_competences: CompetenceId[] | null
+  weak_competences: CompetenceId[] | null
   created_at: string
   updated_at: string
 }
@@ -141,6 +172,29 @@ export interface TestSectionResultRow {
   max_score: number
   details_json: Record<string, unknown> | null
   created_at: string
+}
+
+export interface TestProductionRow {
+  id: string
+  attempt_id: string
+  participant_id: string
+  prompt_id: string
+  kind: PositioningProductionKind
+  response_text: string | null
+  transcription: string | null
+  has_audio: boolean
+  ai_score: number | null
+  ai_level: string | null
+  ai_competences: CompetenceId[] | null
+  ai_errors: string[] | null
+  ai_justification: string | null
+  ai_confidence: string | null
+  ai_status: PositioningAiStatus
+  trainer_score: number | null
+  trainer_note: string | null
+  raw_ai_response: Record<string, unknown> | null
+  created_at: string
+  updated_at: string
 }
 
 export interface OutboundMessageRow {
@@ -177,9 +231,21 @@ export interface AttemptResponsesMap {
   }
 }
 
+export interface AttemptProductionDraft {
+  promptId: string
+  kind: PositioningProductionKind
+  responseText?: string
+  transcription?: string
+  hasAudio?: boolean
+  durationSeconds?: number
+  submittedAt: string
+}
+
 export interface AttemptProgressState {
   responses: AttemptResponsesMap
+  productions: Record<string, AttemptProductionDraft>
   currentQuestionIndex: number
+  phase: 'qcm' | 'writing' | 'speaking' | 'review'
   sectionOrder: PositioningSectionKey[]
   testVersion: string
 }
@@ -194,11 +260,12 @@ export interface SectionScore {
 export interface ComputedAttemptResult {
   totalCorrect: number
   totalQuestions: number
-  totalScore: number
+  autoScore: number
   level: PositioningLevelKey
   levelLabel: string
   recommendedGroupBase: string
   sectionScores: SectionScore[]
+  competenceCoverage: Record<CompetenceId, { hits: number; misses: number; attempts: number }>
   anomalies: string[]
 }
 
