@@ -24,7 +24,7 @@ import {
 type SmsAction = SmsMessageKind | 'export_csv' | 'check_delivery'
 type TestVariant = 'A' | 'B' | 'C'
 
-const DEFAULT_FALLBACK_SENDER = 'tel:+22500000000'
+const DEFAULT_FALLBACK_SENDER = 'tel:+2250797660543'
 
 function defaultDeadline(deadlineAt: string | null) {
   if (deadlineAt) return deadlineAt

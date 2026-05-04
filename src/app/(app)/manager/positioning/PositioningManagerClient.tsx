@@ -1324,7 +1324,16 @@ export default function PositioningManagerClient({
               <p className="text-sm font-semibold text-emerald-900">Diagnostic SMS test (3 variantes)</p>
               <p className="mt-1 text-xs text-emerald-900/80">
                 Aucun salarie touche. Sert a isoler la cause de non-livraison apres acceptation Orange.
+                Test C utilise par defaut sender override <code>tel:+2250797660543</code> (numero Orange reel du
+                bundle).
               </p>
+              {smsTestDestination.replace(/\D+/g, '') === smsSenderOverride.replace(/\D+/g, '') &&
+              smsSenderOverride.trim().length > 0 ? (
+                <p className="mt-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                  Attention : sender = destination. Certains operateurs ignorent un SMS dont l&apos;expediteur
+                  egale le destinataire. Test peu concluant — utilisez un autre numero de destination si possible.
+                </p>
+              ) : null}
               <div className="mt-3 grid gap-3 md:grid-cols-2">
                 <label className="flex flex-col gap-1 text-xs text-emerald-900">
                   <span className="font-semibold">Numero destinataire (par defaut {SMS_TEST_NUMBER_DISPLAY})</span>
@@ -1340,7 +1349,7 @@ export default function PositioningManagerClient({
                   <input
                     value={smsSenderOverride}
                     onChange={(event) => setSmsSenderOverride(event.target.value)}
-                    placeholder="ex: tel:+22500000000 ou un sender ID"
+                    placeholder="ex: tel:+2250797660543 (numero Orange reel)"
                     className="rounded-xl border border-emerald-200 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:border-emerald-500"
                   />
                 </label>
