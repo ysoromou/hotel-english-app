@@ -61,6 +61,7 @@ export interface DashboardParticipantRow {
   latestMessageKind: string | null
   latestMessageBody: string | null
   latestDeliveryUrl: string | null
+  latestAccessUrl: string | null
   latestMessageAt: string | null
 }
 
@@ -248,6 +249,7 @@ export function buildPositioningDashboardData({
       latestMessageKind: latestMessage?.message_kind ?? null,
       latestMessageBody: latestMessage?.message_body ?? null,
       latestDeliveryUrl: getDeliveryUrl(latestMessage),
+      latestAccessUrl: getAccessUrl(latestMessage),
       latestMessageAt: latestMessage?.sent_at ?? latestMessage?.created_at ?? null,
     }
   })
@@ -300,5 +302,11 @@ export function buildPositioningDashboardData({
 function getDeliveryUrl(message: OutboundMessageRow | undefined) {
   if (!message?.provider_payload || Array.isArray(message.provider_payload)) return null
   const value = (message.provider_payload as Record<string, unknown>).deliveryUrl
+  return typeof value === 'string' && value.length > 0 ? value : null
+}
+
+function getAccessUrl(message: OutboundMessageRow | undefined) {
+  if (!message?.provider_payload || Array.isArray(message.provider_payload)) return null
+  const value = (message.provider_payload as Record<string, unknown>).accessUrl
   return typeof value === 'string' && value.length > 0 ? value : null
 }

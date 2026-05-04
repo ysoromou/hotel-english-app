@@ -217,6 +217,9 @@ export default function PositioningManagerClient({
   const [dispatchBusy, setDispatchBusy] = useState(false)
   const [dispatchResults, setDispatchResults] = useState<DispatchResult[]>([])
   const [recalcBusy, setRecalcBusy] = useState(false)
+  const [regenBusyId, setRegenBusyId] = useState<string | null>(null)
+  const [copyFeedback, setCopyFeedback] = useState<string | null>(null)
+  const [regenError, setRegenError] = useState<string | null>(null)
 
   const [smsBusy, setSmsBusy] = useState<SmsAction | null>(null)
   const [smsTestResult, setSmsTestResult] = useState<SmsTestResult | null>(null)
@@ -398,8 +401,40 @@ export default function PositioningManagerClient({
     }
   }
 
-  async function handleCopy(value: string) {
-    await navigator.clipboard.writeText(value)
+  async function handleCopy(value: string, feedback = 'Copie') {
+    try {
+      await navigator.clipboard.writeText(value)
+      setCopyFeedback(feedback)
+      setTimeout(() => setCopyFeedback(null), 2000)
+    } catch {
+      setCopyFeedback('Echec de la copie')
+      setTimeout(() => setCopyFeedback(null), 2000)
+    }
+  }
+
+  async function handleRegenerateLink(row: DashboardRow) {
+    setRegenBusyId(row.participantId)
+    setRegenError(null)
+    try {
+      const response = await fetch('/api/positioning/regenerate-link', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          participantId: row.participantId,
+          deadlineAt: deadlineAt ? new Date(deadlineAt).toISOString() : null,
+        }),
+      })
+      const payload = (await response.json()) as { accessUrl?: string; error?: string }
+      if (!response.ok) throw new Error(payload.error || 'Impossible de regenerer le lien.')
+      if (payload.accessUrl) {
+        await handleCopy(payload.accessUrl, 'Lien regenere et copie')
+      }
+      router.refresh()
+    } catch (error) {
+      setRegenError(error instanceof Error ? error.message : 'Erreur inconnue')
+    } finally {
+      setRegenBusyId(null)
+    }
   }
 
   async function runTestVariant(variant: TestVariant) {
@@ -722,6 +757,21 @@ export default function PositioningManagerClient({
                     />
                   </div>
 
+                  {(copyFeedback || regenError) ? (
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      {copyFeedback ? (
+                        <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">
+                          {copyFeedback}
+                        </span>
+                      ) : null}
+                      {regenError ? (
+                        <span className="rounded-full bg-red-50 px-3 py-1 text-xs font-semibold text-red-700">
+                          {regenError}
+                        </span>
+                      ) : null}
+                    </div>
+                  ) : null}
+
                   <div className="mt-4 overflow-x-auto">
                     <table className="min-w-full text-sm">
                       <thead className="text-left text-xs uppercase tracking-wide text-gray-400">
@@ -737,6 +787,7 @@ export default function PositioningManagerClient({
                           <th className="pb-3 pr-4">Niveau</th>
                           <th className="pb-3 pr-4">Groupe</th>
                           <th className="pb-3 pr-4">IA</th>
+                          <th className="pb-3 pr-4">Lien test</th>
                           <th className="pb-3">Detail</th>
                         </tr>
                       </thead>
@@ -768,6 +819,15 @@ export default function PositioningManagerClient({
                               ) : (
                                 <span className="text-xs text-gray-400">-</span>
                               )}
+                            </td>
+                            <td className="py-3 pr-4">
+                              <LinkActions
+                                row={row}
+                                busy={regenBusyId === row.participantId}
+                                onCopyLink={(url) => handleCopy(url, 'Lien copie')}
+                                onCopyMessage={(msg) => handleCopy(msg, 'Message copie')}
+                                onRegenerate={() => handleRegenerateLink(row)}
+                              />
                             </td>
                             <td className="py-3">
                               <button
@@ -1797,6 +1857,83 @@ function StatusBadge({ label }: { label: string }) {
           : 'bg-gray-100 text-gray-600'
 
   return <span className={`rounded-full px-3 py-1 text-xs font-semibold ${tone}`}>{label}</span>
+}
+
+function LinkActions({
+  row,
+  busy,
+  onCopyLink,
+  onCopyMessage,
+  onRegenerate,
+}: {
+  row: DashboardRow
+  busy: boolean
+  onCopyLink: (url: string) => void
+  onCopyMessage: (msg: string) => void
+  onRegenerate: () => void
+}) {
+  const accessUrl = row.latestAccessUrl
+  const messageBody = row.latestMessageBody
+  const isCompleted = row.attemptStatus === 'completed'
+
+  if (!accessUrl) {
+    if (isCompleted) {
+      return <span className="text-xs text-gray-400">Test termine</span>
+    }
+    return (
+      <button
+        type="button"
+        onClick={onRegenerate}
+        disabled={busy}
+        className="rounded-full bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-700 disabled:opacity-60"
+      >
+        {busy ? 'Generation...' : 'Generer le lien'}
+      </button>
+    )
+  }
+
+  return (
+    <div className="flex flex-wrap gap-1.5">
+      <button
+        type="button"
+        onClick={() => onCopyLink(accessUrl)}
+        className="rounded-full border border-gray-200 px-2.5 py-1 text-xs font-semibold text-gray-700 hover:border-gray-300"
+        title="Copier le lien personnel du test"
+      >
+        Copier lien
+      </button>
+      <a
+        href={accessUrl}
+        target="_blank"
+        rel="noreferrer"
+        className="rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700 hover:border-emerald-300"
+        title="Ouvrir le lien personnel dans un nouvel onglet"
+      >
+        Ouvrir lien
+      </a>
+      {messageBody ? (
+        <button
+          type="button"
+          onClick={() => onCopyMessage(messageBody)}
+          className="rounded-full border border-gray-200 px-2.5 py-1 text-xs font-semibold text-gray-700 hover:border-gray-300"
+          title="Copier le message WhatsApp pret a coller"
+        >
+          Copier message
+        </button>
+      ) : null}
+      {!isCompleted ? (
+        <button
+          type="button"
+          onClick={onRegenerate}
+          disabled={busy}
+          className="rounded-full border border-amber-200 px-2.5 py-1 text-xs font-semibold text-amber-700 hover:border-amber-300 disabled:opacity-60"
+          title="Generer un nouveau lien (invalide l'ancien)"
+        >
+          {busy ? '...' : 'Regenerer'}
+        </button>
+      ) : null}
+    </div>
+  )
 }
 
 function Pill({ children, tone }: { children: ReactNode; tone: 'red' | 'amber' | 'green' }) {
