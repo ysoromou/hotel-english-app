@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { splitVisibleLearners } from '@/lib/test-accounts'
 
 const COMPETENCES: { key: string; label: string }[] = [
   { key: 'accueillir_client', label: 'Accueillir un client en anglais' },
@@ -76,7 +77,6 @@ interface ManagerClientProps {
   allProgress: AppProgress[]
   allEvaluations: EvalRow[]
   sessionCounts: SessionCount[]
-  hiddenTestAccountsCount: number
 }
 
 const METIER_LABELS: Record<string, string> = {
@@ -153,19 +153,26 @@ export default function ManagerClient({
   allProgress,
   allEvaluations,
   sessionCounts,
-  hiddenTestAccountsCount,
 }: ManagerClientProps) {
   const router = useRouter()
   const [search, setSearch] = useState('')
   const [filterMetier, setFilterMetier] = useState<string>('all')
   const [filterHotel, setFilterHotel] = useState<string>('all')
   const [selectedId, setSelectedId] = useState<string | null>(null)
+  const { visibleLearners, hiddenTestAccountsCount } = splitVisibleLearners(learners)
+  const [showTestAccounts, setShowTestAccounts] = useState(hiddenTestAccountsCount > 0)
+
+  const dashboardLearners = showTestAccounts ? learners : visibleLearners
+  const dashboardIds = new Set(dashboardLearners.map((learner) => learner.id))
 
   const progressMap = new Map<string, AppProgress>()
-  for (const progress of allProgress) progressMap.set(progress.user_id, progress)
+  for (const progress of allProgress) {
+    if (dashboardIds.has(progress.user_id)) progressMap.set(progress.user_id, progress)
+  }
 
   const evalMap = new Map<string, { avant: EvalRow | null; apres: EvalRow | null }>()
   for (const evaluation of allEvaluations) {
+    if (!dashboardIds.has(evaluation.learner_id)) continue
     const current = evalMap.get(evaluation.learner_id) || { avant: null, apres: null }
     if (evaluation.type_evaluation === 'avant') current.avant = evaluation
     else current.apres = evaluation
@@ -174,14 +181,15 @@ export default function ManagerClient({
 
   const sessionMap = new Map<string, number>()
   for (const session of sessionCounts) {
+    if (!dashboardIds.has(session.user_id)) continue
     sessionMap.set(session.user_id, (sessionMap.get(session.user_id) || 0) + 1)
   }
 
   const hotels = Array.from(
-    new Set(learners.map((learner) => learner.etablissement).filter(Boolean) as string[]),
+    new Set(dashboardLearners.map((learner) => learner.etablissement).filter(Boolean) as string[]),
   ).sort((a, b) => a.localeCompare(b, 'fr'))
 
-  const filtered = learners.filter((learner) => {
+  const filtered = dashboardLearners.filter((learner) => {
     const query = search.trim().toLowerCase()
     const matchesSearch =
       !query ||
@@ -192,9 +200,9 @@ export default function ManagerClient({
     return matchesSearch && matchesMetier && matchesHotel
   })
 
-  const withInitialEval = learners.filter((learner) => evalMap.get(learner.id)?.avant).length
-  const withFinalEval = learners.filter((learner) => evalMap.get(learner.id)?.apres).length
-  const withBothEvals = learners.filter(
+  const withInitialEval = dashboardLearners.filter((learner) => evalMap.get(learner.id)?.avant).length
+  const withFinalEval = dashboardLearners.filter((learner) => evalMap.get(learner.id)?.apres).length
+  const withBothEvals = dashboardLearners.filter(
     (learner) => evalMap.get(learner.id)?.avant && evalMap.get(learner.id)?.apres,
   )
 
@@ -204,7 +212,7 @@ export default function ManagerClient({
   let beforeSum = 0
   let afterSum = 0
 
-  for (const learner of learners) {
+  for (const learner of dashboardLearners) {
     const evaluation = evalMap.get(learner.id)
     const status = getStatus(getScore(evaluation?.apres), Boolean(evaluation?.apres))
     if (status === 'vert') statusGreen += 1
@@ -227,9 +235,14 @@ export default function ManagerClient({
       ? getProgressionPercent(averageBefore, averageAfter)
       : null
   const operationalRate = withFinalEval > 0 ? Math.round((statusGreen / withFinalEval) * 100) : null
-  const activityRate = getCompletionRate(learners.length, new Set(sessionCounts.map((row) => row.user_id)).size)
+  const activityRate = getCompletionRate(
+    dashboardLearners.length,
+    new Set(Array.from(sessionMap.keys())).size,
+  )
 
-  const selectedLearner = selectedId ? learners.find((learner) => learner.id === selectedId) || null : null
+  const selectedLearner = selectedId
+    ? dashboardLearners.find((learner) => learner.id === selectedId) || null
+    : null
 
   if (selectedLearner) {
     return (
@@ -254,11 +267,32 @@ export default function ManagerClient({
               Vue terrain pour suivre les évaluations, l’usage de l’application et les profils à
               renforcer avant le pilote.
             </p>
-            {hiddenTestAccountsCount > 0 ? (
-              <p className="mt-3 inline-flex rounded-full bg-amber-50 px-3 py-1 text-xs font-medium text-amber-700 ring-1 ring-amber-200">
-                {hiddenTestAccountsCount} compte(s) de test masqué(s) de cette vue.
-              </p>
-            ) : null}
+            <div className="mt-3 flex flex-wrap items-center gap-2">
+              {hiddenTestAccountsCount > 0 ? (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => setShowTestAccounts((current) => !current)}
+                    className={`rounded-full px-3 py-1 text-xs font-semibold ring-1 transition ${
+                      showTestAccounts
+                        ? 'bg-amber-50 text-amber-700 ring-amber-200 hover:bg-amber-100'
+                        : 'bg-white text-gray-700 ring-gray-200 hover:bg-gray-50'
+                    }`}
+                  >
+                    {showTestAccounts ? 'Masquer les comptes de test' : 'Afficher les comptes de test'}
+                  </button>
+                  <span className="text-xs text-gray-500">
+                    {showTestAccounts
+                      ? `Vue interne complète, incluant ${hiddenTestAccountsCount} compte(s) de test.`
+                      : `Indicateurs calculés sur les apprenants visibles hors ${hiddenTestAccountsCount} compte(s) de test.`}
+                  </span>
+                </>
+              ) : (
+                <span className="text-xs text-gray-500">
+                  Indicateurs calculés sur les apprenants visibles dans cette vue.
+                </span>
+              )}
+            </div>
           </div>
           <div className="flex flex-wrap gap-2">
             <button
@@ -328,8 +362,11 @@ export default function ManagerClient({
               Usage application
             </p>
             <div className="mt-3 space-y-2 text-sm text-gray-600">
-              <SummaryLine label="Apprenants" value={String(learners.length)} />
-              <SummaryLine label="Sessions remontées" value={String(sessionCounts.length)} />
+              <SummaryLine label="Apprenants" value={String(dashboardLearners.length)} />
+              <SummaryLine
+                label="Sessions remontées"
+                value={String(Array.from(sessionMap.values()).reduce((sum, value) => sum + value, 0))}
+              />
               <SummaryLine label="Taux d’activité" value={`${activityRate}%`} />
             </div>
           </div>

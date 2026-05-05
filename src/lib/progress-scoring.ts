@@ -20,9 +20,9 @@ export interface ActionProgressRow {
 
 // Type minimal pour une session (ce qu'on lit de la DB)
 export interface SessionRow {
-  score_session: number | null
-  exercises_completed: number
-  start_time: string
+  score: number | null
+  exercises_done: number
+  started_at: string
 }
 
 // Résultat du calcul global

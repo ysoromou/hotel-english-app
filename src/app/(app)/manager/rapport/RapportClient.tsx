@@ -70,7 +70,6 @@ interface RapportClientProps {
   evaluations: EvalRow[]
   appProgress: AppProgress[]
   sessions: SessionRow[]
-  hiddenTestAccountsCount: number
 }
 
 const METIER_LABELS: Record<string, string> = {
@@ -153,7 +152,6 @@ export default function RapportClient({
   evaluations,
   appProgress,
   sessions,
-  hiddenTestAccountsCount,
 }: RapportClientProps) {
   const evalMap = new Map<string, { avant: EvalRow | null; apres: EvalRow | null }>()
   for (const evaluation of evaluations) {
@@ -340,11 +338,6 @@ export default function RapportClient({
                 <p className="mt-2 text-sm text-gray-600">
                   Anglais professionnel hôtelier - synthèse exploitable pour le pilote NOOM / SEEN.
                 </p>
-                {hiddenTestAccountsCount > 0 ? (
-                  <p className="mt-3 inline-flex rounded-full bg-amber-50 px-3 py-1 text-xs font-medium text-amber-700 ring-1 ring-amber-200">
-                    {hiddenTestAccountsCount} compte(s) de test interne exclus du document client.
-                  </p>
-                ) : null}
               </div>
             </div>
             <div className="rounded-2xl bg-gray-50 p-4 text-sm text-gray-600 ring-1 ring-gray-100">
@@ -428,8 +421,12 @@ export default function RapportClient({
           <SectionTitle index="1" title="Synthèse exécutive" />
           {withFinalEval.length === 0 ? (
             <EmptyPanel
-              title="Résultats en attente"
-              description="Les évaluations finales ne sont pas encore disponibles. La synthèse exécutive sera alimentée automatiquement dès que les scores seront renseignés."
+              title={totalSessions > 0 ? 'Rapport en attente d’évaluations' : 'Résultats en attente'}
+              description={
+                totalSessions > 0
+                  ? `${totalSessions} session(s) d'application sont déjà remontées pour ${activeLearners} apprenant(s) actif(s). Les évaluations finales compléteront la lecture pédagogique dès qu'elles seront disponibles.`
+                  : "Les évaluations finales ne sont pas encore disponibles. La synthèse exécutive sera alimentée automatiquement dès que les scores seront renseignés."
+              }
             />
           ) : (
             <div className="space-y-4">

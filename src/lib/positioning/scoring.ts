@@ -99,24 +99,6 @@ export interface ProvisionalScoreOutput {
   recommendedGroupBase: string
 }
 
-function isNumericScore(value: number | null | undefined): value is number {
-  return typeof value === 'number' && Number.isFinite(value)
-}
-
-function normalizeLevelKey(value: string | null | undefined): PositioningLevelKey | null {
-  return POSITIONING_LEVEL_RULES.some((rule) => rule.key === value)
-    ? (value as PositioningLevelKey)
-    : null
-}
-
-export function canComputeProvisionalScore(input: ProvisionalScoreInput) {
-  return (
-    isNumericScore(input.autoScore) &&
-    isNumericScore(input.writingScore) &&
-    isNumericScore(input.speakingScore)
-  )
-}
-
 export function computeProvisionalScore(input: ProvisionalScoreInput): ProvisionalScoreOutput {
   const auto = input.autoScore ?? 0
   const writing = input.writingScore ?? 0
@@ -143,50 +125,14 @@ export function computeProvisionalScore(input: ProvisionalScoreInput): Provision
   }
 }
 
-export interface DerivedAttemptScoreSummaryInput {
-  totalScore: number | null
-  provisionalScore: number | null
-  autoScore: number | null
-  writingScore: number | null
-  speakingScore: number | null
-  estimatedLevel: string | null
-  recommendedGroup: string | null
-}
-
-export interface DerivedAttemptScoreSummary {
-  totalScore: number | null
-  provisionalScore: number | null
-  level: PositioningLevelKey | null
-  levelLabel: string | null
-  recommendedGroup: string | null
-}
-
-export function deriveAttemptScoreSummary(
-  input: DerivedAttemptScoreSummaryInput,
-): DerivedAttemptScoreSummary {
-  const derived =
-    canComputeProvisionalScore(input)
-      ? computeProvisionalScore({
-          autoScore: input.autoScore,
-          writingScore: input.writingScore,
-          speakingScore: input.speakingScore,
-        })
-      : null
-
-  const provisionalScore = input.provisionalScore ?? derived?.provisional ?? null
-  const totalScore = input.totalScore ?? provisionalScore
-  const level = normalizeLevelKey(input.estimatedLevel) ?? derived?.level ?? null
-  const levelLabel = level ? getLevelMeta(level).label : null
-  const recommendedGroup =
-    input.recommendedGroup ?? (level ? buildRecommendedGroupLabel(level, 0, 1) : null)
-
-  return {
-    totalScore,
-    provisionalScore,
-    level,
-    levelLabel,
-    recommendedGroup,
+export function deriveCompleteProvisionalScore(
+  input: ProvisionalScoreInput,
+): ProvisionalScoreOutput | null {
+  if (input.autoScore === null || input.writingScore === null || input.speakingScore === null) {
+    return null
   }
+
+  return computeProvisionalScore(input)
 }
 
 export function deriveCompetenceVerdict(

@@ -14,9 +14,8 @@ import {
   getPositioningQuestions,
 } from '@/lib/positioning/questions'
 import {
-  canComputeProvisionalScore,
   computeAttemptResult,
-  computeProvisionalScore,
+  deriveCompleteProvisionalScore,
   deriveCompetenceVerdict,
   serializeQuestionBank,
 } from '@/lib/positioning/scoring'
@@ -466,7 +465,7 @@ export async function POST(request: NextRequest, { params }: { params: { token: 
       })),
     )
 
-    const provisional = computeProvisionalScore({
+    const provisional = deriveCompleteProvisionalScore({
       autoScore: result.autoScore,
       writingScore: aggregate.writingScore,
       speakingScore: aggregate.speakingScore,
@@ -478,26 +477,16 @@ export async function POST(request: NextRequest, { params }: { params: { token: 
     })
 
     const aiStatus = aggregate.overallStatus
-    const hasCompleteConsolidation = canComputeProvisionalScore({
-      autoScore: result.autoScore,
-      writingScore: aggregate.writingScore,
-      speakingScore: aggregate.speakingScore,
-    })
-    const finalProvisionalScore = hasCompleteConsolidation ? provisional.provisional : null
-    const finalTotalScore = hasCompleteConsolidation ? provisional.provisional : null
-    const finalLevel = hasCompleteConsolidation ? provisional.level : null
-    const finalGroup = hasCompleteConsolidation ? provisional.recommendedGroupBase : null
-    const blockingReason =
-      aiStatus === 'missing_answer'
-        ? 'Score provisoire incomplet : au moins une reponse writing/speaking est manquante.'
-        : aiStatus === 'audio_unusable'
-          ? 'Score provisoire incomplet : au moins un audio oral est inexploitable sans transcription.'
-          : aiStatus === 'ai_error'
-            ? 'Score provisoire incomplet : evaluation IA indisponible ou reponse JSON inexploitable.'
-            : 'Score provisoire incomplet : evaluation writing/speaking manquante.'
-    const provisionalAnomalies = hasCompleteConsolidation
-      ? result.anomalies
-      : [...result.anomalies, blockingReason]
+    const finalProvisionalScore = provisional?.provisional ?? null
+    const finalTotalScore = provisional?.provisional ?? null
+    const finalLevel = provisional?.level ?? null
+    const finalGroup = provisional?.recommendedGroupBase ?? null
+    const provisionalAnomalies = aggregate.hasBlockingIssue
+      ? [
+          ...result.anomalies,
+          `Consolidation incomplete : score ${aggregate.overallStatus} sur au moins une production writing/speaking.`,
+        ]
+      : result.anomalies
 
     await admin
       .from('test_attempts')

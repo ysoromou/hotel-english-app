@@ -4,6 +4,7 @@ import {
   POSITIONING_AI_PROVIDER,
 } from '@/lib/positioning/config'
 import { COMPETENCE_IDS, CompetenceId } from '@/lib/positioning/competences'
+import { getPositioningProductions } from '@/lib/positioning/questions'
 import {
   PositioningAiStatus,
   PositioningProductionPrompt,
@@ -140,6 +141,33 @@ function normalizeConfidence(value: unknown): 'high' | 'medium' | 'low' | null {
 }
 
 const OPENROUTER_TIMEOUT_MS = Number(process.env.AI_REQUEST_TIMEOUT_MS || 60_000)
+const EXPECTED_PRODUCTION_COUNTS = getPositioningProductions().reduce(
+  (acc, prompt) => {
+    acc[prompt.kind] += 1
+    return acc
+  },
+  { writing: 0, speaking: 0 } as Record<'writing' | 'speaking', number>,
+)
+const HARD_BLOCKING_STATUSES = new Set<PositioningAiStatus>([
+  'audio_unusable',
+  'missing_answer',
+  'ai_error',
+])
+
+function getUsableProductionScore(production: {
+  ai_score: number | null
+  trainer_score?: number | null
+  ai_status: PositioningAiStatus
+}) {
+  if (
+    production.ai_status === 'trainer_corrected' &&
+    typeof production.trainer_score === 'number'
+  ) {
+    return production.trainer_score
+  }
+
+  return typeof production.ai_score === 'number' ? production.ai_score : null
+}
 
 async function callOpenRouter(model: string, userPrompt: string) {
   const apiKey = process.env.OPENROUTER_API_KEY
@@ -241,6 +269,10 @@ export async function evaluateProduction(input: AiEvaluationInput): Promise<AiEv
       }
 
       const score = clampScore(parsed.ai_score)
+      if (score === null) {
+        lastError = new Error('Score IA absent ou invalide.')
+        continue
+      }
       const level = normalizeLevel(parsed.ai_level)
       const competences = normalizeCompetences(parsed.ai_competences)
       const errors = normalizeErrors(parsed.ai_errors)
@@ -251,11 +283,7 @@ export async function evaluateProduction(input: AiEvaluationInput): Promise<AiEv
       const confidence = normalizeConfidence(parsed.ai_confidence)
 
       const status: PositioningAiStatus =
-        score === null
-          ? 'ai_error'
-          : confidence && confidence !== 'low'
-            ? 'ia_validated'
-            : 'needs_trainer_review'
+        confidence && confidence !== 'low' ? 'ia_validated' : 'needs_trainer_review'
 
       return {
         ai_score: score,
@@ -286,66 +314,60 @@ export function aggregateProductionScores(productions: Array<{
   ai_competences: CompetenceId[] | null
   ai_level: string | null
 }>) {
-  const effectiveProductions = productions.map((production) => ({
-    ...production,
-    effectiveScore:
-      typeof production.trainer_score === 'number'
-        ? production.trainer_score
-        : typeof production.ai_score === 'number'
-          ? production.ai_score
-          : null,
-  }))
+  const writingRows = productions.filter((p) => p.kind === 'writing')
+  const speakingRows = productions.filter((p) => p.kind === 'speaking')
 
-  const writingScores = effectiveProductions.filter(
-    (p) => p.kind === 'writing' && typeof p.effectiveScore === 'number',
-  )
-  const speakingScores = effectiveProductions.filter(
-    (p) => p.kind === 'speaking' && typeof p.effectiveScore === 'number',
-  )
+  function computeSectionAverage(rows: typeof productions) {
+    const usableScores = rows.map(getUsableProductionScore)
+    const hasAllScores =
+      rows.length > 0 &&
+      usableScores.length === rows.length &&
+      usableScores.every((score): score is number => typeof score === 'number')
 
-  const writingScore = writingScores.length
-    ? Math.round(
-        writingScores.reduce((sum, p) => sum + (p.effectiveScore as number), 0) /
-          writingScores.length,
-      )
-    : null
-  const speakingScore = speakingScores.length
-    ? Math.round(
-        speakingScores.reduce((sum, p) => sum + (p.effectiveScore as number), 0) /
-          speakingScores.length,
-      )
-    : null
+    return hasAllScores
+      ? Math.round(usableScores.reduce((sum, score) => sum + score, 0) / usableScores.length)
+      : null
+  }
+
+  const writingScore =
+    writingRows.length === EXPECTED_PRODUCTION_COUNTS.writing
+      ? computeSectionAverage(writingRows)
+      : null
+  const speakingScore =
+    speakingRows.length === EXPECTED_PRODUCTION_COUNTS.speaking
+      ? computeSectionAverage(speakingRows)
+      : null
 
   const strong = new Set<CompetenceId>()
   const weak = new Set<CompetenceId>()
 
-  for (const production of effectiveProductions) {
-    if (typeof production.effectiveScore !== 'number') continue
-    const isStrong = production.effectiveScore >= 70
-    const isWeak = production.effectiveScore <= 39
+  for (const production of productions) {
+    const resolvedScore = getUsableProductionScore(production)
+    if (typeof resolvedScore !== 'number') continue
+    const isStrong = resolvedScore >= 70
+    const isWeak = resolvedScore <= 39
     for (const competence of production.ai_competences || []) {
       if (isStrong) strong.add(competence)
       if (isWeak) weak.add(competence)
     }
   }
 
-  const hasMissingAnswer = effectiveProductions.some((p) => p.ai_status === 'missing_answer')
-  const hasAudioUnusable = effectiveProductions.some((p) => p.ai_status === 'audio_unusable')
-  const hasAiError = effectiveProductions.some((p) => p.ai_status === 'ai_error')
-  const needsReview = effectiveProductions.some((p) => p.ai_status === 'needs_trainer_review')
-  const hasTrainerCorrection = effectiveProductions.some((p) => p.ai_status === 'trainer_corrected')
+  const needsReview = productions.some((p) => p.ai_status === 'needs_trainer_review')
+  const hardBlockingStatus =
+    productions.find(
+      (production) =>
+        HARD_BLOCKING_STATUSES.has(production.ai_status) &&
+        getUsableProductionScore(production) === null,
+    )?.ai_status ??
+    (writingScore === null || speakingScore === null ? 'ai_error' : null)
 
-  const overallStatus: PositioningAiStatus = hasMissingAnswer
-    ? 'missing_answer'
-    : hasAudioUnusable
-      ? 'audio_unusable'
-      : hasAiError
-        ? 'ai_error'
-        : needsReview
-          ? 'needs_trainer_review'
-          : hasTrainerCorrection
-            ? 'trainer_corrected'
-            : 'ia_validated'
+  const overallStatus: PositioningAiStatus =
+    hardBlockingStatus ??
+    (productions.some((production) => production.ai_status === 'trainer_corrected')
+      ? 'trainer_corrected'
+      : needsReview
+        ? 'needs_trainer_review'
+        : 'ia_validated')
 
   return {
     writingScore,
@@ -353,6 +375,7 @@ export function aggregateProductionScores(productions: Array<{
     strongFromProductions: Array.from(strong),
     weakFromProductions: Array.from(weak),
     needsReview,
+    hasBlockingIssue: writingScore === null || speakingScore === null,
     overallStatus,
   }
 }

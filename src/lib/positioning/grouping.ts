@@ -1,16 +1,14 @@
-import { buildRecommendedGroupLabel, deriveAttemptScoreSummary } from '@/lib/positioning/scoring'
-import { ParticipantRow, PositioningLevelKey, TestAttemptRow } from '@/lib/positioning/types'
+import {
+  buildRecommendedGroupLabel,
+  deriveCompleteProvisionalScore,
+} from '@/lib/positioning/scoring'
+import { ParticipantRow, TestAttemptRow } from '@/lib/positioning/types'
 
 export interface GroupAssignment {
   participantId: string
   attemptId: string
   recommendedGroup: string
   rationale: string
-}
-
-interface CompletedAttemptEntry {
-  attempt: TestAttemptRow
-  level: PositioningLevelKey
 }
 
 export function computeGroupAssignments({
@@ -24,28 +22,20 @@ export function computeGroupAssignments({
 }) {
   const participantMap = new Map(participants.map((participant) => [participant.id, participant]))
   const completedAttempts = attempts
-    .filter((attempt) => attempt.status === 'completed')
-    .map((attempt) => {
-      const summary = deriveAttemptScoreSummary({
-        totalScore: attempt.total_score,
-        provisionalScore: attempt.provisional_score,
-        autoScore: attempt.auto_score,
-        writingScore: attempt.writing_score,
-        speakingScore: attempt.speaking_score,
-        estimatedLevel: attempt.estimated_level,
-        recommendedGroup: attempt.recommended_group,
-      })
-
-      return summary.level
-        ? {
-            attempt,
-            level: summary.level,
-          }
-        : null
-    })
-    .filter((entry): entry is CompletedAttemptEntry => Boolean(entry))
+    .map((attempt) => ({
+      attempt,
+      levelKey:
+        attempt.estimated_level ??
+        deriveCompleteProvisionalScore({
+          autoScore: attempt.auto_score,
+          writingScore: attempt.writing_score,
+          speakingScore: attempt.speaking_score,
+        })?.level ??
+        null,
+    }))
+    .filter((item) => item.attempt.status === 'completed' && item.levelKey)
     .sort((a, b) => {
-      const levelCompare = a.level.localeCompare(b.level, 'fr')
+      const levelCompare = String(a.levelKey).localeCompare(String(b.levelKey), 'fr')
       if (levelCompare !== 0) return levelCompare
 
       const participantA = participantMap.get(a.attempt.participant_id)
@@ -56,11 +46,12 @@ export function computeGroupAssignments({
       return (participantA?.full_name || '').localeCompare(participantB?.full_name || '', 'fr')
     })
 
-  const buckets = new Map<string, CompletedAttemptEntry[]>()
-  for (const entry of completedAttempts) {
-    const current = buckets.get(entry.level) ?? []
-    current.push(entry)
-    buckets.set(entry.level, current)
+  const buckets = new Map<string, TestAttemptRow[]>()
+  for (const item of completedAttempts) {
+    const levelKey = item.levelKey as string
+    const current = buckets.get(levelKey) ?? []
+    current.push(item.attempt)
+    buckets.set(levelKey, current)
   }
 
   const assignments: GroupAssignment[] = []
@@ -70,34 +61,33 @@ export function computeGroupAssignments({
       const members = bucket.slice(groupIndex * targetGroupSize, (groupIndex + 1) * targetGroupSize)
       const recommendedGroup = buildRecommendedGroupLabel(levelKey, groupIndex, totalGroups)
 
-      const hotelBreakdown = members.reduce<Record<string, number>>((acc, member) => {
-        const hotel = participantMap.get(member.attempt.participant_id)?.hotel || 'Non renseigne'
+      const hotelBreakdown = members.reduce<Record<string, number>>((acc, attempt) => {
+        const hotel = participantMap.get(attempt.participant_id)?.hotel || 'Non renseigné'
         acc[hotel] = (acc[hotel] ?? 0) + 1
         return acc
       }, {})
 
-      const organizationBreakdown = members.reduce<Record<string, number>>((acc, member) => {
-        const organization =
-          participantMap.get(member.attempt.participant_id)?.organization || 'Non renseignee'
+      const organizationBreakdown = members.reduce<Record<string, number>>((acc, attempt) => {
+        const organization = participantMap.get(attempt.participant_id)?.organization || 'Non renseignée'
         acc[organization] = (acc[organization] ?? 0) + 1
         return acc
       }, {})
 
       const rationale = [
-        `Niveau homogene ${levelKey}.`,
-        `Effectif cible ${targetGroupSize}, effectif affecte ${members.length}.`,
-        `Hotels: ${Object.entries(hotelBreakdown)
+        `Niveau homogène ${levelKey}.`,
+        `Effectif cible ${targetGroupSize}, effectif affecté ${members.length}.`,
+        `Hôtels: ${Object.entries(hotelBreakdown)
           .map(([name, count]) => `${name} (${count})`)
           .join(', ')}.`,
-        `Repartition organisations: ${Object.entries(organizationBreakdown)
+        `Répartition organisations: ${Object.entries(organizationBreakdown)
           .map(([name, count]) => `${name} (${count})`)
           .join(', ')}.`,
       ].join(' ')
 
       for (const member of members) {
         assignments.push({
-          participantId: member.attempt.participant_id,
-          attemptId: member.attempt.id,
+          participantId: member.participant_id,
+          attemptId: member.id,
           recommendedGroup,
           rationale,
         })

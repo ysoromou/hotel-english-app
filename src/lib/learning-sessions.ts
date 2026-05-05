@@ -33,19 +33,38 @@ function isMissingColumnError(error: LearningSessionsError | null | undefined) {
 }
 
 function mapLegacyRows(rows: Record<string, unknown>[]): SessionRow[] {
-  return rows.map((row) => ({
-    score: typeof row.score_session === 'number' ? row.score_session : null,
-    exercises_done: typeof row.exercises_completed === 'number' ? row.exercises_completed : 0,
-    started_at: typeof row.start_time === 'string' ? row.start_time : '',
-  }))
+  return rows.map((row) => {
+    const score = typeof row.score_session === 'number' ? row.score_session : null
+    const exercisesDone =
+      typeof row.exercises_completed === 'number' ? row.exercises_completed : 0
+    const startedAt = typeof row.start_time === 'string' ? row.start_time : ''
+
+    return {
+      score,
+      exercises_done: exercisesDone,
+      started_at: startedAt,
+      score_session: score,
+      exercises_completed: exercisesDone,
+      start_time: startedAt,
+    } as SessionRow
+  })
 }
 
 function mapCanonicalRows(rows: Record<string, unknown>[]): SessionRow[] {
-  return rows.map((row) => ({
-    score: typeof row.score === 'number' ? row.score : null,
-    exercises_done: typeof row.exercises_done === 'number' ? row.exercises_done : 0,
-    started_at: typeof row.started_at === 'string' ? row.started_at : '',
-  }))
+  return rows.map((row) => {
+    const score = typeof row.score === 'number' ? row.score : null
+    const exercisesDone = typeof row.exercises_done === 'number' ? row.exercises_done : 0
+    const startedAt = typeof row.started_at === 'string' ? row.started_at : ''
+
+    return {
+      score,
+      exercises_done: exercisesDone,
+      started_at: startedAt,
+      score_session: score,
+      exercises_completed: exercisesDone,
+      start_time: startedAt,
+    } as SessionRow
+  })
 }
 
 async function tryInsert(

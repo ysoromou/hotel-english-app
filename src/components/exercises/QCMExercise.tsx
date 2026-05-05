@@ -3,21 +3,24 @@
 import { useState, useMemo, useCallback } from 'react'
 import { normalizeQuizType, QUIZ_TYPE_LABELS } from '@/lib/normalizeQuizType'
 
-// Exercice QCM — rendu distinct selon le type canonique
-// Chaque type_quiz est normalisé puis affiché avec son propre layout
-// Audio TTS via Web Speech API pour LISTEN_AND_SELECT (aucune dépendance externe)
+interface QuizOption {
+  position: number
+  option_text: string
+}
 
 interface QCMExerciseProps {
   question: string
-  optionA: string
-  optionB: string
+  optionA: string | null
+  optionB: string | null
   optionC: string | null
-  correctAnswer: string // 'A', 'B', ou 'C'
+  correctAnswer: string
   typeQuiz: string
+  expectedAnswer?: string | null
+  audioUrl?: string | null
+  quizOptions?: QuizOption[]
   onComplete: (isCorrect: boolean) => void
 }
 
-// Mélange stable d'un tableau (Fisher-Yates avec seed simple)
 function shuffleWithSeed<T>(arr: T[], seed: number): T[] {
   const a = [...arr]
   let s = seed
@@ -29,10 +32,21 @@ function shuffleWithSeed<T>(arr: T[], seed: number): T[] {
   return a
 }
 
-// Lecture TTS — via notre proxy serveur /api/tts (fonctionne sur tous les navigateurs)
+function buildAudioSource(audioUrl: string | null | undefined, fallbackText: string): string {
+  if (!audioUrl) {
+    return `/api/tts?text=${encodeURIComponent(fallbackText)}`
+  }
+
+  if (audioUrl.startsWith('http://') || audioUrl.startsWith('https://') || audioUrl.startsWith('/')) {
+    return audioUrl
+  }
+
+  return `/${audioUrl}`
+}
+
 let currentAudio: HTMLAudioElement | null = null
 
-function speakText(text: string, onEnd?: () => void) {
+function playAudio(source: string, onEnd?: () => void) {
   if (typeof window === 'undefined') { onEnd?.(); return }
 
   if (currentAudio) {
@@ -40,8 +54,7 @@ function speakText(text: string, onEnd?: () => void) {
     currentAudio = null
   }
 
-  const url = `/api/tts?text=${encodeURIComponent(text)}`
-  const audio = new Audio(url)
+  const audio = new Audio(source)
   currentAudio = audio
 
   audio.onended = () => { currentAudio = null; onEnd?.() }
@@ -50,7 +63,16 @@ function speakText(text: string, onEnd?: () => void) {
 }
 
 export default function QCMExercise({
-  question, optionA, optionB, optionC, correctAnswer, typeQuiz, onComplete,
+  question,
+  optionA,
+  optionB,
+  optionC,
+  correctAnswer,
+  typeQuiz,
+  expectedAnswer = null,
+  audioUrl = null,
+  quizOptions = [],
+  onComplete,
 }: QCMExerciseProps) {
   const canonical = normalizeQuizType(typeQuiz)
   const { tag, heading } = QUIZ_TYPE_LABELS[canonical]
@@ -58,26 +80,62 @@ export default function QCMExercise({
   const [selected, setSelected] = useState<string | null>(null)
   const [answered, setAnswered] = useState(false)
   const [playing, setPlaying] = useState(false)
-
-  // ORDER_SEQUENCE : tokens sélectionnés par l'utilisateur
   const [builtSequence, setBuiltSequence] = useState<string[]>([])
   const [orderValidated, setOrderValidated] = useState(false)
+  const [orderIsCorrect, setOrderIsCorrect] = useState(false)
 
-  // TTS pour LISTEN_AND_SELECT
+  const audioSource = useMemo(
+    () => buildAudioSource(audioUrl, question),
+    [audioUrl, question]
+  )
+
+  const orderedQuizOptions = useMemo(
+    () => [...quizOptions].sort((a, b) => a.position - b.position),
+    [quizOptions]
+  )
+
+  const allOptions = useMemo(() => {
+    if (orderedQuizOptions.length > 0 && canonical === 'LISTEN_AND_SELECT') {
+      return orderedQuizOptions.map((option, index) => ({
+        label: String.fromCharCode(65 + index),
+        text: option.option_text,
+      }))
+    }
+
+    return [
+      optionA ? { label: 'A', text: optionA } : null,
+      optionB ? { label: 'B', text: optionB } : null,
+      optionC ? { label: 'C', text: optionC } : null,
+    ].filter((option): option is { label: string; text: string } => option !== null)
+  }, [canonical, optionA, optionB, optionC, orderedQuizOptions])
+
+  const visibleOptions = canonical === 'TONE_CHECK' ? allOptions.slice(0, 2) : allOptions
+  const correctOptionText = allOptions.find((option) => option.label === correctAnswer)?.text ?? expectedAnswer ?? ''
+
+  const targetItems = useMemo(() => {
+    if (canonical !== 'ORDER_SEQUENCE') return []
+
+    if (orderedQuizOptions.length > 0) {
+      return orderedQuizOptions.map((option) => option.option_text.trim()).filter(Boolean)
+    }
+
+    if (expectedAnswer) {
+      return expectedAnswer.split('||').map((item) => item.trim()).filter(Boolean)
+    }
+
+    return correctOptionText ? correctOptionText.split(/\s+/).filter(Boolean) : []
+  }, [canonical, correctOptionText, expectedAnswer, orderedQuizOptions])
+
+  const shuffledItems = useMemo(
+    () => shuffleWithSeed(targetItems, question.length * 7 + 31),
+    [question, targetItems]
+  )
+
   const handleListen = useCallback(() => {
     if (playing) return
     setPlaying(true)
-    speakText(question, () => setPlaying(false))
-  }, [question, playing])
-
-  const allOptions = [
-    { label: 'A', text: optionA },
-    { label: 'B', text: optionB },
-    ...(optionC ? [{ label: 'C', text: optionC }] : []),
-  ]
-
-  // TONE_CHECK n'utilise que A et B
-  const visibleOptions = canonical === 'TONE_CHECK' ? allOptions.slice(0, 2) : allOptions
+    playAudio(audioSource, () => setPlaying(false))
+  }, [audioSource, playing])
 
   function handleSelect(label: string) {
     if (answered) return
@@ -85,47 +143,33 @@ export default function QCMExercise({
     setAnswered(true)
   }
 
-  const isCorrect = selected === correctAnswer
-
-  // ORDER_SEQUENCE : mots cibles et mélangés
-  // Garde-fou : si correctAnswer === 'C' mais optionC est null, fallback sur optionA
-  const correctText = correctAnswer === 'A' ? optionA : correctAnswer === 'B' ? optionB : (optionC || optionA)
-  const safeCorrectText = correctText || optionA || ''
-  const targetTokens = useMemo(() => safeCorrectText.split(/\s+/).filter(Boolean), [safeCorrectText])
-  const shuffledTokens = useMemo(
-    () => shuffleWithSeed(targetTokens, question.length * 7 + 31),
-    [targetTokens, question]
-  )
   function handleTokenTap(globalIndex: number) {
     if (orderValidated) return
-    setBuiltSequence(prev => [...prev, String(globalIndex)])
+    setBuiltSequence((prev) => [...prev, String(globalIndex)])
   }
 
   function handleTokenRemove(seqIndex: number) {
     if (orderValidated) return
-    setBuiltSequence(prev => prev.filter((_, i) => i !== seqIndex))
+    setBuiltSequence((prev) => prev.filter((_, index) => index !== seqIndex))
   }
 
   function handleOrderValidate() {
     setOrderValidated(true)
-    const assembled = builtSequence.map(i => shuffledTokens[Number(i)]).join(' ')
-    const correct = targetTokens.join(' ')
-    const ok = assembled.toLowerCase() === correct.toLowerCase()
-    setSelected(ok ? correctAnswer : '__wrong__')
+    const assembled = builtSequence.map((index) => shuffledItems[Number(index)]).join(' || ')
+    const expected = targetItems.join(' || ')
+    const isCorrect = assembled.toLowerCase() === expected.toLowerCase()
+    setOrderIsCorrect(isCorrect)
   }
 
-  const orderIsCorrect = orderValidated && selected === correctAnswer
-
-  // ===== Feedback partagé =====
-  function renderFeedback(correct: boolean) {
+  function renderFeedback(correct: boolean, expectedText?: string) {
     return (
       <div className={`rounded-2xl p-4 mt-4 ${correct ? 'bg-[#4CAF50]/10 border border-[#4CAF50]/30' : 'bg-red-50 border border-red-200'}`}>
         <p className={`font-semibold text-sm ${correct ? 'text-[#006633]' : 'text-red-700'}`}>
           {correct ? 'Bonne réponse !' : 'Pas tout à fait...'}
         </p>
-        {!correct && (
+        {!correct && expectedText && (
           <p className="text-sm text-red-600 mt-1">
-            La bonne réponse était : <strong>{correctAnswer === 'A' ? optionA : correctAnswer === 'B' ? optionB : (optionC || optionA)}</strong>
+            Réponse attendue : <strong>{expectedText}</strong>
           </p>
         )}
       </div>
@@ -143,9 +187,6 @@ export default function QCMExercise({
     )
   }
 
-  // ===== RENDU PAR TYPE =====
-
-  // --- ORDER_SEQUENCE ---
   if (canonical === 'ORDER_SEQUENCE') {
     return (
       <div className="space-y-6">
@@ -158,10 +199,9 @@ export default function QCMExercise({
           <p className="text-base font-semibold text-[#000] leading-relaxed">{question}</p>
         </div>
 
-        {/* Zone de construction */}
         <div className="min-h-[3rem] bg-[#F5F5F5] rounded-xl p-3 border-2 border-dashed border-[#E5E7EB] flex flex-wrap gap-2">
           {builtSequence.length === 0 && (
-            <span className="text-sm text-[#999]">Tapez les mots dans le bon ordre…</span>
+            <span className="text-sm text-[#999]">Placez les étapes dans le bon ordre...</span>
           )}
           {builtSequence.map((globalIdx, seqIdx) => (
             <button
@@ -175,19 +215,18 @@ export default function QCMExercise({
                   : 'bg-[#006633]/10 text-[#006633] border border-[#006633]/30'
               }`}
             >
-              {shuffledTokens[Number(globalIdx)]}
+              {shuffledItems[Number(globalIdx)]}
             </button>
           ))}
         </div>
 
-        {/* Tokens disponibles */}
         <div className="flex flex-wrap gap-2">
-          {shuffledTokens.map((token, i) => {
-            const used = builtSequence.includes(String(i))
+          {shuffledItems.map((item, index) => {
+            const used = builtSequence.includes(String(index))
             return (
               <button
-                key={i}
-                onClick={() => handleTokenTap(i)}
+                key={index}
+                onClick={() => handleTokenTap(index)}
                 disabled={used || orderValidated}
                 className={`px-3 py-1.5 rounded-lg text-sm font-semibold border transition-all ${
                   used
@@ -195,14 +234,13 @@ export default function QCMExercise({
                     : 'bg-white text-[#333] border-[#E5E7EB] hover:border-[#006633] active:scale-95'
                 }`}
               >
-                {token}
+                {item}
               </button>
             )
           })}
         </div>
 
-        {/* Valider / Feedback */}
-        {!orderValidated && builtSequence.length === shuffledTokens.length && (
+        {!orderValidated && builtSequence.length === shuffledItems.length && shuffledItems.length > 0 && (
           <button
             onClick={handleOrderValidate}
             className="btn-primary"
@@ -210,25 +248,41 @@ export default function QCMExercise({
             Vérifier
           </button>
         )}
-        {orderValidated && renderFeedback(orderIsCorrect)}
+        {orderValidated && renderFeedback(orderIsCorrect, targetItems.join(' -> '))}
         {orderValidated && renderNextButton(orderIsCorrect)}
       </div>
     )
   }
 
-  // --- Tous les autres types (choix par clic) ---
+  if (visibleOptions.length === 0) {
+    return (
+      <div className="space-y-6">
+        <span className="text-xs px-3 py-1 rounded-full font-semibold bg-[#006633]/10 text-[#006633]">
+          {tag}
+        </span>
+        <div className="bg-white rounded-2xl p-5 shadow-soft border border-[#E5E7EB]">
+          <p className="text-xs uppercase tracking-wider text-[#666] mb-2">{heading}</p>
+          <p className="text-base font-semibold text-[#000] leading-relaxed">{question}</p>
+        </div>
+        <div className="rounded-2xl p-4 border border-amber-200 bg-amber-50 text-sm text-amber-800">
+          Les options de cet exercice ne sont pas disponibles dans les données chargées.
+        </div>
+        {renderNextButton(false)}
+      </div>
+    )
+  }
+
+  const isCorrect = selected === correctAnswer
+
   return (
     <div className="space-y-6">
-      {/* Tag type — couleur unique verte */}
       <span className="text-xs px-3 py-1 rounded-full font-semibold bg-[#006633]/10 text-[#006633]">
         {tag}
       </span>
 
-      {/* Question / prompt */}
       <div className="mb-6">
         <p className="text-xs font-semibold uppercase tracking-wider text-[#666] mb-3">{heading}</p>
 
-        {/* LISTEN_AND_SELECT : bouton play avec TTS réel */}
         {canonical === 'LISTEN_AND_SELECT' && (
           <button
             onClick={handleListen}
@@ -251,7 +305,6 @@ export default function QCMExercise({
         <h2 className="text-[18px] font-extrabold text-[#000000] leading-snug">{question}</h2>
       </div>
 
-      {/* Options — pilule Premium Light */}
       <div className="space-y-3">
         {visibleOptions.map((option) => {
           let cardStyle = 'bg-white border-[#E5E7EB] text-[#333]'
@@ -281,7 +334,6 @@ export default function QCMExercise({
             >
               <div className="flex items-center justify-between gap-3">
                 <span className="text-sm font-semibold leading-snug">{option.text}</span>
-                {/* Icône résultat */}
                 {showCheck && (
                   <div className="w-6 h-6 shrink-0 rounded-full bg-[#4CAF50] flex items-center justify-center">
                     <svg className="w-3.5 h-3.5 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={3}>
@@ -302,8 +354,7 @@ export default function QCMExercise({
         })}
       </div>
 
-      {/* Feedback */}
-      {answered && renderFeedback(isCorrect)}
+      {answered && renderFeedback(isCorrect, correctOptionText)}
       {answered && renderNextButton(isCorrect)}
     </div>
   )

@@ -42,7 +42,7 @@ export default async function RapportPage() {
     .from('learning_sessions')
     .select('user_id')
 
-  const { visibleLearners, hiddenTestAccountsCount } = splitVisibleLearners(learners || [])
+  const { visibleLearners } = splitVisibleLearners(learners || [])
   const visibleIds = new Set(visibleLearners.map((learner) => learner.id))
 
   return (
@@ -51,7 +51,6 @@ export default async function RapportPage() {
       evaluations={(evaluations || []).filter((evaluation) => visibleIds.has(evaluation.learner_id))}
       appProgress={(appProgress || []).filter((progress) => visibleIds.has(progress.user_id))}
       sessions={(sessions || []).filter((session) => visibleIds.has(session.user_id))}
-      hiddenTestAccountsCount={hiddenTestAccountsCount}
     />
   )
 }

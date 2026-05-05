@@ -92,11 +92,6 @@ function formatScore(value: number | null) {
   return value !== null ? `${value}/100` : 'Non evalue'
 }
 
-function formatGlobalScore(value: number | null, isProvisional: boolean) {
-  if (value === null) return 'Non evalue'
-  return `${value}/100${isProvisional ? ' provisoire' : ''}`
-}
-
 function formatAiStatus(value: DashboardRow['aiStatus']) {
   const labels: Record<string, string> = {
     ia_validated: 'IA validee',
@@ -110,9 +105,8 @@ function formatAiStatus(value: DashboardRow['aiStatus']) {
   return labels[value] || value
 }
 
-function formatLevel(level: string | null, label: string | null) {
-  if (level && label) return `${level} / ${label}`
-  return label || level || 'Non evalue'
+function formatLevel(value: string | null) {
+  return value || 'Non evalue'
 }
 
 function formatGroup(value: string | null) {
@@ -816,16 +810,22 @@ export default function PositioningManagerClient({
                             <td className="py-3 pr-4 text-gray-700">{formatScore(row.autoScore)}</td>
                             <td className="py-3 pr-4 text-gray-700">{formatScore(row.writingScore)}</td>
                             <td className="py-3 pr-4 text-gray-700">{formatScore(row.speakingScore)}</td>
-                            <td className="py-3 pr-4 font-semibold text-gray-900">
-                              {formatGlobalScore(row.totalScore, row.needsTrainerReview)}
-                            </td>
-                            <td className="py-3 pr-4 text-gray-600">
-                              {formatLevel(row.level, row.levelLabel)}
-                            </td>
+                            <td className="py-3 pr-4 font-semibold text-gray-900">{formatScore(row.totalScore)}</td>
+                            <td className="py-3 pr-4 text-gray-600">{formatLevel(row.levelLabel)}</td>
                             <td className="py-3 pr-4 text-gray-600">{formatGroup(row.recommendedGroup)}</td>
                             <td className="py-3 pr-4">
                               {row.attemptStatus === 'completed' ? (
-                                <Pill tone={row.needsTrainerReview ? 'amber' : 'green'}>
+                                <Pill
+                                  tone={
+                                    row.aiStatus === 'ai_error' ||
+                                    row.aiStatus === 'audio_unusable' ||
+                                    row.aiStatus === 'missing_answer'
+                                      ? 'red'
+                                      : row.needsTrainerReview
+                                        ? 'amber'
+                                        : 'green'
+                                  }
+                                >
                                   {formatAiStatus(row.aiStatus)}
                                 </Pill>
                               ) : (
@@ -938,14 +938,11 @@ export default function PositioningManagerClient({
                     <MiniInfo label="Email" value={formatText(selectedRow.email)} />
                     <MiniInfo label="Statut" value={getRowStatusLabel(selectedRow)} />
                     <MiniInfo label="Suivi" value={formatAbsenceLabel(selectedRow.absenceCategory)} />
-                    <MiniInfo label="Niveau" value={formatLevel(selectedRow.level, selectedRow.levelLabel)} />
+                    <MiniInfo label="Niveau" value={formatLevel(selectedRow.levelLabel)} />
                     <MiniInfo label="Score auto" value={formatScore(selectedRow.autoScore)} />
                     <MiniInfo label="Ecrit IA" value={formatScore(selectedRow.writingScore)} />
                     <MiniInfo label="Oral IA" value={formatScore(selectedRow.speakingScore)} />
-                    <MiniInfo
-                      label="Score global"
-                      value={formatGlobalScore(selectedRow.totalScore, selectedRow.needsTrainerReview)}
-                    />
+                    <MiniInfo label="Score global provisoire" value={formatScore(selectedRow.totalScore)} />
                     <MiniInfo label="Statut IA" value={formatAiStatus(selectedRow.aiStatus)} />
                     <MiniInfo label="Groupe" value={formatGroup(selectedRow.recommendedGroup)} />
                     <MiniInfo label="Dernier message" value={getMessageStatusLabel(selectedRow)} />
@@ -991,7 +988,17 @@ export default function PositioningManagerClient({
                               <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
                                 {production.kind === 'writing' ? 'Ecrit' : 'Oral'} - {production.promptId}
                               </p>
-                              <Pill tone={production.aiStatus === 'ia_validated' ? 'green' : 'amber'}>
+                              <Pill
+                                tone={
+                                  production.aiStatus === 'ai_error' ||
+                                  production.aiStatus === 'audio_unusable' ||
+                                  production.aiStatus === 'missing_answer'
+                                    ? 'red'
+                                    : production.aiStatus === 'ia_validated'
+                                      ? 'green'
+                                      : 'amber'
+                                }
+                              >
                                 {formatAiStatus(production.aiStatus)}
                               </Pill>
                             </div>
