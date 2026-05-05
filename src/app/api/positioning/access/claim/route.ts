@@ -9,6 +9,12 @@ import {
 } from '@/lib/positioning/types'
 import { PositioningAccessHotel, matchesPositioningAccessHotel } from '@/lib/positioning/collective-access'
 
+type ClaimRequestBody = {
+  hotel?: string
+  phone?: string
+  launch?: boolean | string
+}
+
 function buildRepository(): PositioningAccessRepository {
   const admin = createAdminClient()
 
@@ -109,6 +115,34 @@ function buildRepository(): PositioningAccessRepository {
   }
 }
 
+function readString(value: FormDataEntryValue | string | undefined | null) {
+  return typeof value === 'string' ? value : undefined
+}
+
+async function parseClaimRequest(request: NextRequest): Promise<{
+  hotel?: string
+  phone?: string
+  launchRequested: boolean
+}> {
+  const contentType = request.headers.get('content-type') || ''
+
+  if (contentType.includes('application/json')) {
+    const body = (await request.json()) as ClaimRequestBody
+    return {
+      hotel: body.hotel,
+      phone: body.phone,
+      launchRequested: body.launch === true || body.launch === 'true',
+    }
+  }
+
+  const formData = await request.formData()
+  return {
+    hotel: readString(formData.get('hotel')),
+    phone: readString(formData.get('phone')),
+    launchRequested: readString(formData.get('launch')) === 'true',
+  }
+}
+
 export async function POST(request: NextRequest) {
   if (!isAdminClientConfigured()) {
     return NextResponse.json(
@@ -118,10 +152,7 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const body = (await request.json()) as {
-      hotel?: string
-      phone?: string
-    }
+    const body = await parseClaimRequest(request)
 
     const result = await claimPositioningAccess({
       repository: buildRepository(),
@@ -172,10 +203,13 @@ export async function POST(request: NextRequest) {
       })
     }
 
+    if (body.launchRequested) {
+      return NextResponse.redirect(result.accessUrl, { status: 303 })
+    }
+
     return NextResponse.json({
       completed: false,
       firstName: result.firstName,
-      accessUrl: result.accessUrl,
     })
   } catch (error) {
     console.error('POST /api/positioning/access/claim failed:', error)

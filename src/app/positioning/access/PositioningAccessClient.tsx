@@ -7,7 +7,7 @@ type ClaimState =
   | { status: 'idle' }
   | { status: 'loading' }
   | { status: 'error'; message: string }
-  | { status: 'ready'; firstName: string; accessUrl: string }
+  | { status: 'ready'; firstName: string }
   | { status: 'completed'; firstName: string; message: string }
 
 export default function PositioningAccessClient({
@@ -17,6 +17,27 @@ export default function PositioningAccessClient({
 }) {
   const [phone, setPhone] = useState('')
   const [claimState, setClaimState] = useState<ClaimState>({ status: 'idle' })
+
+  function launchPersonalTest() {
+    const form = document.createElement('form')
+    form.method = 'POST'
+    form.action = '/api/positioning/access/claim'
+
+    for (const [name, value] of [
+      ['hotel', hotel],
+      ['phone', phone],
+      ['launch', 'true'],
+    ]) {
+      const input = document.createElement('input')
+      input.type = 'hidden'
+      input.name = name
+      input.value = value
+      form.appendChild(input)
+    }
+
+    document.body.appendChild(form)
+    form.submit()
+  }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -36,7 +57,6 @@ export default function PositioningAccessClient({
 
       const payload = (await response.json()) as {
         firstName?: string
-        accessUrl?: string
         completed?: boolean
         message?: string
         error?: string
@@ -61,7 +81,7 @@ export default function PositioningAccessClient({
         return
       }
 
-      if (!payload.firstName || !payload.accessUrl) {
+      if (!payload.firstName) {
         setClaimState({
           status: 'error',
           message: "Impossible d'ouvrir le test pour le moment. Merci de reessayer.",
@@ -72,7 +92,6 @@ export default function PositioningAccessClient({
       setClaimState({
         status: 'ready',
         firstName: payload.firstName,
-        accessUrl: payload.accessUrl,
       })
     } catch {
       setClaimState({
@@ -96,7 +115,7 @@ export default function PositioningAccessClient({
         </p>
         <button
           type="button"
-          onClick={() => window.location.assign(claimState.accessUrl)}
+          onClick={launchPersonalTest}
           className="mt-6 w-full rounded-full bg-emerald-600 px-5 py-4 text-base font-semibold text-white shadow-sm hover:bg-emerald-700"
         >
           Lancer le test
