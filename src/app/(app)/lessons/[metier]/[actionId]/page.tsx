@@ -2,9 +2,6 @@ import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import LessonClient from './LessonClient'
 
-// Page serveur — récupère les données de la leçon depuis Supabase
-// puis passe tout au composant client qui gère l'interactivité
-
 export default async function LessonPage({
   params,
 }: {
@@ -14,11 +11,9 @@ export default async function LessonPage({
   const prefix = decodeURIComponent(metier)
   const supabase = await createClient()
 
-  // Vérifier la connexion
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
-  // Récupérer l'action
   const { data: action } = await supabase
     .from('actions_metier')
     .select('*')
@@ -27,25 +22,40 @@ export default async function LessonPage({
 
   if (!action) redirect(`/lessons/${prefix}`)
 
-  // Récupérer les phrases de cette action
-  const { data: phrases } = await supabase
-    .from('phrases')
-    .select('*')
-    .eq('action_id', actionId)
-    .order('id')
+  const [phrasesResult, quizzesResult] = await Promise.all([
+    supabase
+      .from('phrases')
+      .select('*')
+      .eq('action_id', actionId)
+      .order('id'),
+    supabase
+      .from('quiz')
+      .select('*')
+      .eq('action_id', actionId)
+      .order('id'),
+  ])
 
-  // Récupérer les quiz de cette action
-  const { data: quizzes } = await supabase
-    .from('quiz')
-    .select('*')
-    .eq('action_id', actionId)
-    .order('id')
+  const quizzes = quizzesResult.data ?? []
+  const quizIds = quizzes.map((quiz) => quiz.id)
+  const quizOptionsResult = quizIds.length === 0
+    ? { data: [] as Array<{ quiz_id: string; position: number; option_text: string }> }
+    : await supabase
+        .from('quiz_options')
+        .select('quiz_id, position, option_text')
+        .in('quiz_id', quizIds)
+        .order('position')
+
+  const quizOptions = quizOptionsResult.data ?? []
+  const quizzesWithOptions = quizzes.map((quiz) => ({
+    ...quiz,
+    quiz_options: quizOptions.filter((option) => option.quiz_id === quiz.id),
+  }))
 
   return (
     <LessonClient
       action={action}
-      phrases={phrases ?? []}
-      quizzes={quizzes ?? []}
+      phrases={phrasesResult.data ?? []}
+      quizzes={quizzesWithOptions}
       metierPrefix={prefix}
       userId={user.id}
     />

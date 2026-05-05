@@ -34,17 +34,17 @@ function isMissingColumnError(error: LearningSessionsError | null | undefined) {
 
 function mapLegacyRows(rows: Record<string, unknown>[]): SessionRow[] {
   return rows.map((row) => ({
-    score_session: typeof row.score_session === 'number' ? row.score_session : null,
-    exercises_completed: typeof row.exercises_completed === 'number' ? row.exercises_completed : 0,
-    start_time: typeof row.start_time === 'string' ? row.start_time : '',
+    score: typeof row.score_session === 'number' ? row.score_session : null,
+    exercises_done: typeof row.exercises_completed === 'number' ? row.exercises_completed : 0,
+    started_at: typeof row.start_time === 'string' ? row.start_time : '',
   }))
 }
 
 function mapCanonicalRows(rows: Record<string, unknown>[]): SessionRow[] {
   return rows.map((row) => ({
-    score_session: typeof row.score === 'number' ? row.score : null,
-    exercises_completed: typeof row.exercises_done === 'number' ? row.exercises_done : 0,
-    start_time: typeof row.started_at === 'string' ? row.started_at : '',
+    score: typeof row.score === 'number' ? row.score : null,
+    exercises_done: typeof row.exercises_done === 'number' ? row.exercises_done : 0,
+    started_at: typeof row.started_at === 'string' ? row.started_at : '',
   }))
 }
 
