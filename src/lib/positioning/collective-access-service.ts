@@ -85,6 +85,33 @@ function hasStartedAttempt(attempt: TestAttemptRow | null) {
   return Boolean(attempt?.started_at && attempt.status !== 'completed')
 }
 
+function isLocalhostHostname(hostname: string) {
+  const normalizedHostname = hostname.trim().toLowerCase()
+  return (
+    normalizedHostname === 'localhost' ||
+    normalizedHostname === '127.0.0.1' ||
+    normalizedHostname === '::1'
+  )
+}
+
+function canReuseAccessUrlForOrigin(accessUrl: string, origin?: string) {
+  try {
+    const parsedAccessUrl = new URL(accessUrl)
+
+    if (isLocalhostHostname(parsedAccessUrl.hostname)) {
+      if (!origin) return false
+      const parsedOrigin = new URL(origin)
+      return parsedOrigin.origin === parsedAccessUrl.origin
+    }
+
+    if (!origin) return true
+
+    return new URL(origin).origin === parsedAccessUrl.origin
+  } catch {
+    return false
+  }
+}
+
 function isCompletedParticipant({
   participant,
   invite,
@@ -105,14 +132,17 @@ function shouldReuseExistingAccessUrl({
   invite,
   attempt,
   accessUrl,
+  origin,
   now,
 }: {
   invite: TestInviteRow | null
   attempt: TestAttemptRow | null
   accessUrl: string | null
+  origin?: string
   now: Date
 }) {
   if (!invite?.token_hash || !accessUrl) return false
+  if (!canReuseAccessUrlForOrigin(accessUrl, origin)) return false
   if (!invite.expires_at) return true
   if (hasStartedAttempt(attempt)) return true
   return new Date(invite.expires_at).getTime() >= now.getTime()
@@ -197,6 +227,7 @@ export async function claimPositioningAccess({
     invite: existingInvite,
     attempt,
     accessUrl: existingAccessUrl,
+    origin,
     now,
   })
 

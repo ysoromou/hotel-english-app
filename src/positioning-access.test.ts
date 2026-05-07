@@ -293,6 +293,51 @@ async function run() {
     "aucun nouveau message n'est ajoute quand le lien existant est reutilisable",
   )
 
+  const localhostReuseContext = createFakeRepository({
+    participants: [createParticipant()],
+    invites: [createInvite()],
+    messages: [
+      createMessage({
+        message_body: 'Bonjour Awa,\nhttp://localhost:3001/positioning/existing-token',
+        provider_payload: {
+          accessUrl: 'http://localhost:3001/positioning/existing-token',
+        },
+      }),
+    ],
+  })
+
+  const localhostReuseResult = await claimPositioningAccess({
+    repository: localhostReuseContext.repository,
+    hotel: 'NOOM',
+    phone: '0797660543',
+    origin: 'https://hotel-english-app.vercel.app',
+    now: new Date('2026-05-04T10:00:00.000Z'),
+  })
+
+  assert(
+    localhostReuseResult.kind === 'success',
+    'claim reussit meme si un ancien lien localhost existe',
+  )
+  assert(
+    localhostReuseResult.kind !== 'success' ||
+      localhostReuseResult.accessUrl.startsWith('https://hotel-english-app.vercel.app/positioning/'),
+    'ancien lien localhost n est pas reutilise depuis la production',
+  )
+  assert(
+    localhostReuseResult.kind !== 'success' ||
+      localhostReuseResult.accessUrl !== 'http://localhost:3001/positioning/existing-token',
+    'un nouveau lien remplace le localhost stocke',
+  )
+  assert(
+    localhostReuseResult.kind !== 'success' ||
+      localhostReuseResult.reusedExistingAccessUrl === false,
+    'reusedExistingAccessUrl reste faux quand il faut remplacer le localhost',
+  )
+  assert(
+    localhostReuseContext.state.messages.length === 2,
+    'un nouveau message est ajoute quand le localhost existant doit etre remplace',
+  )
+
   const completedContext = createFakeRepository({
     participants: [createParticipant({ status: 'completed' })],
     invites: [createInvite({ status: 'completed', completed_at: '2026-05-04T11:00:00.000Z' })],
