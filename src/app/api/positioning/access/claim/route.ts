@@ -2,18 +2,16 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient, isAdminClientConfigured } from '@/lib/supabase/admin'
 import { claimPositioningAccess, PositioningAccessRepository } from '@/lib/positioning/collective-access-service'
 import {
+  ClaimRequestParseError,
+  parseClaimJsonBody,
+} from '@/lib/positioning/access-claim-request'
+import {
   OutboundMessageRow,
   ParticipantRow,
   TestAttemptRow,
   TestInviteRow,
 } from '@/lib/positioning/types'
 import { PositioningAccessHotel, matchesPositioningAccessHotel } from '@/lib/positioning/collective-access'
-
-type ClaimRequestBody = {
-  hotel?: string
-  phone?: string
-  launch?: boolean | string
-}
 
 function buildRepository(): PositioningAccessRepository {
   const admin = createAdminClient()
@@ -127,12 +125,7 @@ async function parseClaimRequest(request: NextRequest): Promise<{
   const contentType = request.headers.get('content-type') || ''
 
   if (contentType.includes('application/json')) {
-    const body = (await request.json()) as ClaimRequestBody
-    return {
-      hotel: body.hotel,
-      phone: body.phone,
-      launchRequested: body.launch === true || body.launch === 'true',
-    }
+    return parseClaimJsonBody(await request.text())
   }
 
   const formData = await request.formData()
@@ -212,6 +205,9 @@ export async function POST(request: NextRequest) {
       firstName: result.firstName,
     })
   } catch (error) {
+    if (error instanceof ClaimRequestParseError) {
+      return NextResponse.json({ error: error.message }, { status: error.status })
+    }
     console.error('POST /api/positioning/access/claim failed:', error)
     return NextResponse.json(
       { error: "Impossible d'ouvrir le test pour le moment. Merci de reessayer." },
