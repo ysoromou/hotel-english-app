@@ -7,7 +7,7 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "test": "npx ts-node src/srs.test.ts && npx ts-node src/positioning.test.ts && npx ts-node src/positioning-access.test.ts",
+    "test": "npx ts-node src/srs.test.ts && npx ts-node src/positioning.test.ts && npx ts-node src/positioning-access.test.ts && npx ts-node src/positioning-submission.test.ts",
     "build:logic": "tsc -p tsconfig.build.json"
   },
   "keywords": [

@@ -19,6 +19,7 @@ import {
   deriveCompetenceVerdict,
   serializeQuestionBank,
 } from '@/lib/positioning/scoring'
+import { getAttemptSubmissionReadiness } from '@/lib/positioning/submission'
 import {
   aggregateProductionScores,
   evaluateProduction,
@@ -44,11 +45,6 @@ function getRemainingSeconds(startedAt: string | null) {
 
 function clampQuestionIndex(value: number) {
   return Math.max(0, Math.min(value, Math.max(POSITIONING_QUESTION_COUNT - 1, 0)))
-}
-
-function isAttemptTimeElapsed(startedAt: string | null) {
-  const remainingSeconds = getRemainingSeconds(startedAt)
-  return remainingSeconds !== null && remainingSeconds <= 0
 }
 
 function getProgressState(attempt: TestAttemptRow | null): AttemptProgressState {
@@ -352,9 +348,6 @@ export async function POST(request: NextRequest, { params }: { params: { token: 
   }
 
   if (body.action === 'SAVE_PROGRESS') {
-    if (isAttemptTimeElapsed(attempt.started_at)) {
-      return NextResponse.json({ error: 'Temps ecoule. Merci de valider le test.' }, { status: 409 })
-    }
     if (!body.questionId || !body.answer) {
       return NextResponse.json({ error: 'Reponse incomplete.' }, { status: 400 })
     }
@@ -439,6 +432,29 @@ export async function POST(request: NextRequest, { params }: { params: { token: 
   if (body.action === 'SUBMIT_TEST') {
     const responses = existingProgress.responses
     const productionsDraft = existingProgress.productions
+    const submissionReadiness = getAttemptSubmissionReadiness({
+      progress: existingProgress,
+      questionIds: getPositioningQuestions().map((question) => question.id),
+      productions: getPositioningProductions(),
+    })
+
+    if (!submissionReadiness.ready) {
+      const error = !submissionReadiness.isReviewPhase
+        ? 'Soumission finale indisponible. Merci d aller jusqu a l ecran final avant de terminer le test.'
+        : `Soumission incomplete. Il reste ${submissionReadiness.missingQuestionIds.length} question(s) et ${submissionReadiness.missingProductionIds.length} production(s) a finaliser avant Terminer le test.`
+
+      return NextResponse.json(
+        {
+          error,
+          details: {
+            missingQuestionIds: submissionReadiness.missingQuestionIds,
+            missingProductionIds: submissionReadiness.missingProductionIds,
+          },
+        },
+        { status: 409 },
+      )
+    }
+
     const result = computeAttemptResult(responses)
     const completedAt = new Date().toISOString()
     const startedAt = attempt.started_at || completedAt

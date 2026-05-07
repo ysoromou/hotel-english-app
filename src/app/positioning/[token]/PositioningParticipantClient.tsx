@@ -152,17 +152,9 @@ export default function PositioningParticipantClient({ token }: { token: string 
   useEffect(() => {
     if (status !== 'in_progress') return
     const timer = window.setInterval(() => {
-      setTimeLeft((current) => {
-        if (current <= 1) {
-          window.clearInterval(timer)
-          handleSubmit().catch(() => undefined)
-          return 0
-        }
-        return current - 1
-      })
+      setTimeLeft((current) => (current <= 0 ? 0 : current - 1))
     }, 1000)
     return () => window.clearInterval(timer)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [status])
 
   const questions = payload?.questions || []
@@ -285,8 +277,12 @@ export default function PositioningParticipantClient({ token }: { token: string 
         signal: controller.signal,
       })
       if (!response.ok) {
-        const text = await response.text().catch(() => '')
-        throw new Error(text || `HTTP ${response.status}`)
+        const errorPayload = await response.json().catch(() => null)
+        const errorMessage =
+          errorPayload && typeof errorPayload.error === 'string'
+            ? errorPayload.error
+            : `HTTP ${response.status}`
+        throw new Error(errorMessage)
       }
       await loadPayload()
     } catch (error) {
@@ -294,7 +290,8 @@ export default function PositioningParticipantClient({ token }: { token: string 
       setSubmitError(
         isAbort
           ? 'Le traitement IA prend plus de temps que prevu. Vos reponses sont enregistrees mais l\'analyse n\'a pas abouti. Merci de reessayer.'
-          : 'Vos reponses n\'ont pas pu etre transmises. Merci de verifier votre connexion et de reessayer.',
+          : (error as Error)?.message ||
+              'Vos reponses n\'ont pas pu etre transmises. Merci de verifier votre connexion et de reessayer.',
       )
       setStatus('submit_error')
     } finally {
@@ -396,7 +393,7 @@ export default function PositioningParticipantClient({ token }: { token: string 
         <div className="mt-6 rounded-3xl bg-gray-50 p-5 text-left ring-1 ring-gray-100">
           <p className="font-semibold text-gray-900">Avant de commencer</p>
           <ul className="mt-3 space-y-2 text-sm text-gray-600">
-            <li>Duree estimee : {payload.durationMinutes ?? DEFAULT_DURATION_MINUTES} minutes.</li>
+            <li>Duree indicative : {payload.durationMinutes ?? DEFAULT_DURATION_MINUTES} minutes.</li>
             <li>Le test contient {questions.length} questions a choix unique, {writingPrompts.length} productions ecrites et {speakingPrompts.length} productions orales.</li>
             <li>Pour la comprehension orale, ecoutez chaque audio avant de repondre.</li>
             <li>Pour les productions orales, autorisez l'acces au micro lorsque demande.</li>
@@ -444,6 +441,11 @@ export default function PositioningParticipantClient({ token }: { token: string 
               {Math.floor(timeLeft / 60)}:{String(timeLeft % 60).padStart(2, '0')}
             </div>
           </div>
+          {timeLeft <= 0 ? (
+            <p className="mt-3 text-xs font-medium text-amber-700">
+              Le temps indicatif est depasse. Vous pouvez continuer et terminer normalement le test.
+            </p>
+          ) : null}
           <div className="mt-4 h-2 overflow-hidden rounded-full bg-gray-100">
             <div
               className="h-full rounded-full bg-emerald-600 transition-all"
