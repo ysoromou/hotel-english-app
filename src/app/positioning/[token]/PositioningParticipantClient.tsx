@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { getFirstIncompleteProductionIndex } from '@/lib/positioning/resume-progress'
 
 type SectionKey = 'reading' | 'listening' | 'vocabulary' | 'situations'
 type Phase = 'qcm' | 'writing' | 'speaking' | 'review'
@@ -603,11 +604,11 @@ function WritingPanel({
   onContinue,
 }: {
   prompts: PublicProduction[]
-  productions: Record<string, ProductionDraft>
-  onSave: (draft: ProductionDraft) => Promise<void>
-  onContinue: () => void
-}) {
-  const [index, setIndex] = useState(0)
+    productions: Record<string, ProductionDraft>
+    onSave: (draft: ProductionDraft) => Promise<void>
+    onContinue: () => void
+  }) {
+    const [index, setIndex] = useState(() => getFirstIncompleteProductionIndex(prompts, productions))
   const prompt = prompts[index]
   const initial = productions[prompt?.id || '']?.responseText || ''
   const [text, setText] = useState(initial)
@@ -694,11 +695,11 @@ function SpeakingPanel({
   onContinue,
 }: {
   prompts: PublicProduction[]
-  productions: Record<string, ProductionDraft>
-  onSave: (draft: ProductionDraft) => Promise<void>
-  onContinue: () => void
-}) {
-  const [index, setIndex] = useState(0)
+    productions: Record<string, ProductionDraft>
+    onSave: (draft: ProductionDraft) => Promise<void>
+    onContinue: () => void
+  }) {
+    const [index, setIndex] = useState(() => getFirstIncompleteProductionIndex(prompts, productions))
   const prompt = prompts[index]
   const [transcript, setTranscript] = useState('')
   const [recording, setRecording] = useState(false)
